@@ -232,7 +232,7 @@ const LARGE_PASTE_LINE_THRESHOLD = 200;
 const LARGE_PASTE_PREVIEW_CHARS = 160;
 const CARET_ANCHOR_TEXT = "\u200B";
 const IME_ENTER_SUPPRESS_WINDOW_MS = 300;
-const IME_COMPOSITION_END_ENTER_TAIL_MS = 80;
+const IME_COMPOSITION_END_ENTER_TAIL_MS = 20;
 // Must match the .composer-typewriter-char animation duration in index.css.
 const TYPEWRITER_CHAR_FADE_MS = 220;
 const GITHUB_ICON_SVG =
