@@ -1,0 +1,124 @@
+export type ImageViewerSize = {
+  width: number;
+  height: number;
+};
+
+export type ImageViewerPan = {
+  x: number;
+  y: number;
+};
+
+export type ImageViewerState = ImageViewerPan & {
+  scale: number;
+  rotation: number;
+};
+
+export const IMAGE_VIEWER_MIN_SCALE = 0.25;
+export const IMAGE_VIEWER_MAX_SCALE = 4;
+
+function finiteSize(value: number) {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+export function clampImageViewerScale(scale: number) {
+  return Math.min(Math.max(scale, IMAGE_VIEWER_MIN_SCALE), IMAGE_VIEWER_MAX_SCALE);
+}
+
+export function normalizeImageViewerRotation(degrees: number) {
+  const next = Math.round(degrees / 90) * 90;
+  return ((next % 360) + 360) % 360;
+}
+
+export function fitImageViewerSize(
+  naturalSize: ImageViewerSize,
+  viewportSize: ImageViewerSize,
+  rotation = 0,
+): ImageViewerSize {
+  const naturalWidth = finiteSize(naturalSize.width);
+  const naturalHeight = finiteSize(naturalSize.height);
+  const viewportWidth = finiteSize(viewportSize.width);
+  const viewportHeight = finiteSize(viewportSize.height);
+  if (!naturalWidth || !naturalHeight || !viewportWidth || !viewportHeight) {
+    return { width: 0, height: 0 };
+  }
+
+  const rotatedSize = rotatedImageViewerSize(
+    { width: naturalWidth, height: naturalHeight },
+    rotation,
+  );
+  const ratio = Math.min(viewportWidth / rotatedSize.width, viewportHeight / rotatedSize.height);
+  return {
+    width: naturalWidth * ratio,
+    height: naturalHeight * ratio,
+  };
+}
+
+export function rotatedImageViewerSize(size: ImageViewerSize, rotation: number): ImageViewerSize {
+  const normalizedRotation = normalizeImageViewerRotation(rotation);
+  if (normalizedRotation === 90 || normalizedRotation === 270) {
+    return { width: finiteSize(size.height), height: finiteSize(size.width) };
+  }
+  return { width: finiteSize(size.width), height: finiteSize(size.height) };
+}
+
+export function clampImageViewerPan(
+  pan: ImageViewerPan,
+  options: {
+    imageSize: ImageViewerSize;
+    viewportSize: ImageViewerSize;
+    scale: number;
+    rotation: number;
+  },
+): ImageViewerPan {
+  const viewportWidth = finiteSize(options.viewportSize.width);
+  const viewportHeight = finiteSize(options.viewportSize.height);
+  const imageSize = rotatedImageViewerSize(options.imageSize, options.rotation);
+  const scale = clampImageViewerScale(options.scale);
+  if (!viewportWidth || !viewportHeight || !imageSize.width || !imageSize.height) {
+    return { x: 0, y: 0 };
+  }
+
+  const maxX = Math.max(0, (imageSize.width * scale - viewportWidth) / 2);
+  const maxY = Math.max(0, (imageSize.height * scale - viewportHeight) / 2);
+  return {
+    x: maxX ? Math.min(Math.max(Number.isFinite(pan.x) ? pan.x : 0, -maxX), maxX) : 0,
+    y: maxY ? Math.min(Math.max(Number.isFinite(pan.y) ? pan.y : 0, -maxY), maxY) : 0,
+  };
+}
+
+export function clampImageViewerState(
+  state: ImageViewerState,
+  options: {
+    imageSize: ImageViewerSize;
+    viewportSize: ImageViewerSize;
+  },
+): ImageViewerState {
+  const scale = clampImageViewerScale(state.scale);
+  const rotation = normalizeImageViewerRotation(state.rotation);
+  const pan = clampImageViewerPan(state, { ...options, scale, rotation });
+  return { ...pan, scale, rotation };
+}
+
+export function zoomImageViewerAtPoint(
+  state: ImageViewerState,
+  nextScale: number,
+  anchor: ImageViewerPan,
+  options: {
+    imageSize: ImageViewerSize;
+    viewportSize: ImageViewerSize;
+  },
+): ImageViewerState {
+  const previousScale = clampImageViewerScale(state.scale);
+  const scale = clampImageViewerScale(nextScale);
+  if (scale === previousScale) return clampImageViewerState(state, options);
+
+  // The pointer is expressed relative to the view centre. Preserving the same
+  // image-space coordinate beneath it works for every 90-degree rotation.
+  const x = anchor.x - ((anchor.x - state.x) * scale) / previousScale;
+  const y = anchor.y - ((anchor.y - state.y) * scale) / previousScale;
+  return clampImageViewerState({ ...state, x, y, scale }, options);
+}
+
+export function resetImageViewerState(): ImageViewerState {
+  return { scale: 1, rotation: 0, x: 0, y: 0 };
+}

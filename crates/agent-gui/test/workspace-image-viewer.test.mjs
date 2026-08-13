@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { createTsModuleLoader } from "./helpers/load-ts-module.mjs";
+
+const loader = createTsModuleLoader();
+const viewer = loader.loadModule(
+  "@liveagent/ui/components/workspace-editor/workspaceImageViewer.ts",
+);
+
+const viewport = { width: 800, height: 600 };
+const image = { width: 800, height: 450 };
+
+test("image viewer normalizes rotation and clamps zoom scale", () => {
+  assert.equal(viewer.normalizeImageViewerRotation(-90), 270);
+  assert.equal(viewer.normalizeImageViewerRotation(450), 90);
+  assert.equal(viewer.clampImageViewerScale(-1), 0.25);
+  assert.equal(viewer.clampImageViewerScale(9), 4);
+});
+
+test("image viewer centres dimensions that fit inside the viewport", () => {
+  assert.deepEqual(viewer.clampImageViewerPan({ x: 80, y: -80 }, {
+    imageSize: image,
+    viewportSize: viewport,
+    scale: 1,
+    rotation: 0,
+  }), { x: 0, y: 0 });
+});
+
+test("image viewer fits a rotated image inside the viewport", () => {
+  assert.deepEqual(viewer.fitImageViewerSize({ width: 1600, height: 900 }, viewport, 90), {
+    width: 600,
+    height: 337.5,
+  });
+});
+
+test("image viewer clamps panning against scaled and rotated bounds", () => {
+  assert.deepEqual(viewer.clampImageViewerPan({ x: 900, y: -900 }, {
+    imageSize: image,
+    viewportSize: viewport,
+    scale: 2,
+    rotation: 0,
+  }), { x: 400, y: -150 });
+
+  assert.deepEqual(viewer.clampImageViewerPan({ x: 900, y: -900 }, {
+    imageSize: image,
+    viewportSize: viewport,
+    scale: 2,
+    rotation: 90,
+  }), { x: 50, y: -500 });
+});
+
+test("image viewer keeps the image point beneath the zoom anchor stable", () => {
+  const before = { scale: 1, rotation: 90, x: 30, y: -20 };
+  const anchor = { x: 120, y: -60 };
+  const after = viewer.zoomImageViewerAtPoint(before, 1.5, anchor, {
+    imageSize: { width: 1600, height: 900 },
+    viewportSize: viewport,
+  });
+
+  const beforePoint = {
+    x: (anchor.x - before.x) / before.scale,
+    y: (anchor.y - before.y) / before.scale,
+  };
+  const afterPoint = {
+    x: (anchor.x - after.x) / after.scale,
+    y: (anchor.y - after.y) / after.scale,
+  };
+  assert.deepEqual(afterPoint, beforePoint);
+});
+
+test("image viewer reset restores the default fit state", () => {
+  assert.deepEqual(viewer.resetImageViewerState(), {
+    scale: 1,
+    rotation: 0,
+    x: 0,
+    y: 0,
+  });
+});
