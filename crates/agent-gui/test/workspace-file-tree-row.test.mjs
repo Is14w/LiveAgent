@@ -72,6 +72,7 @@ test("workspace file tree opens files from anywhere in the hovered row", () => {
   const { tree, calls } = renderRow();
 
   assert.equal(tree.props.onDoubleClick, undefined);
+  assert.match(tree.props.className, /\bw-full\b/);
   assert.equal(typeof tree.props.onClick, "function");
   tree.props.onClick();
 

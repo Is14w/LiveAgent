@@ -61,7 +61,7 @@ export const FileTreeRow = memo(function FileTreeRow(props: FileTreeRowProps) {
       aria-expanded={kind === "dir" ? expanded : undefined}
       tabIndex={0}
       className={cn(
-        "group flex cursor-pointer select-none items-center gap-1 rounded-md pr-2 text-xs leading-5 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+        "group flex w-full cursor-pointer select-none items-center gap-1 rounded-md pr-2 text-xs leading-5 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
         selected && "bg-muted text-foreground",
       )}
       style={{ height: FILE_TREE_ROW_HEIGHT, paddingLeft: 6 + depth * 14 }}
