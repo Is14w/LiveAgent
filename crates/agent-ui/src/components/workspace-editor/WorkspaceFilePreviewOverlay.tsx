@@ -482,7 +482,8 @@ export function WorkspaceFilePreviewOverlay(props: WorkspaceFilePreviewOverlayPr
   }, [spreadsheet?.activeSheetName]);
 
   const activePreviewRequest = activeRequest ?? openRequest;
-  const activePath = preview?.path ?? activePreviewRequest?.path ?? "";
+  // The request comes from the workspace file tree and retains its full logical path.
+  const activePath = activePreviewRequest?.path ?? preview?.path ?? "";
   const kind = preview?.kind ?? (activePath ? getWorkspacePreviewKind(activePath) : null) ?? "text";
   const PreviewIcon = getPreviewIcon(kind);
   const imagePaths = useMemo(
