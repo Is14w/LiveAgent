@@ -172,6 +172,7 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.configureModel": "Click the button below to configure a provider and model.",
   "chat.goToSettings": "Configure Provider",
   "chat.loading": "Loading settings...",
+  "chat.loadingConversation": "Loading conversation...",
   "chat.sendMessage": "Send Message",
   "chat.send": "Send",
   "chat.stopGeneration": "Stop Generation",

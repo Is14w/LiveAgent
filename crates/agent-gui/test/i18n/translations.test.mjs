@@ -39,6 +39,28 @@ test("translation lookup falls back to the key for unknown entries", () => {
   assert.equal(i18n.t("missing.key", "en-US"), "missing.key");
 });
 
+test("loading states and desktop settings fallbacks are localized", () => {
+  assert.equal(i18n.t("chat.loadingConversation", "zh-CN"), "正在加载对话...");
+  assert.equal(i18n.t("chat.loadingConversation", "en-US"), "Loading conversation...");
+  assert.equal(
+    i18n.t("app.settingsLoadFailed", "zh-CN"),
+    "加载设置失败，已回退到默认配置。",
+  );
+  assert.equal(
+    i18n.t("app.settingsLoadFailed", "en-US"),
+    "Failed to load settings. Default settings have been restored.",
+  );
+  assert.equal(i18n.t("app.settingsSaveFailed", "en-US"), "Failed to save settings.");
+  assert.equal(
+    i18n.t("app.settingsReloadFailed", "en-US"),
+    "Failed to reload settings. The previous settings are still displayed.",
+  );
+  assert.equal(
+    i18n.t("app.gatewaySettingsSyncFailed", "en-US"),
+    "Failed to sync WebUI settings.",
+  );
+});
+
 test("usage query labels exist in both locales", () => {
   for (const locale of ["zh-CN", "en-US"]) {
     assert.ok(i18n.translations[locale]["settings.providerUsageQuery"]);

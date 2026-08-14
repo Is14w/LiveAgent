@@ -305,7 +305,7 @@ export default function App() {
           setSettingsState(fallback);
           setSettingsSaveState({
             status: "error",
-            message: asErrorMessage(error, "加载设置失败，已回退到默认配置。"),
+            message: asErrorMessage(error, translate("app.settingsLoadFailed", fallback.locale)),
           });
         }
       } finally {
@@ -382,7 +382,7 @@ export default function App() {
       queueSettingsSave(
         prev,
         next,
-        "保存设置失败。",
+        translate("app.settingsSaveFailed", next.locale),
         hasSettingsSyncChanged(prev, next) || hasSensitiveSettingsUpdates(next),
       );
     },
@@ -428,7 +428,10 @@ export default function App() {
       void reloadPersistedSettings().catch((error) => {
         setSettingsSaveState({
           status: "error",
-          message: asErrorMessage(error, "重新加载设置失败，当前显示的是旧配置。"),
+          message: asErrorMessage(
+            error,
+            translate("app.settingsReloadFailed", settingsRef.current.locale),
+          ),
         });
       });
     },
@@ -583,7 +586,12 @@ export default function App() {
         }
         settingsRef.current = next;
         setSettingsState(next);
-        queueSettingsSave(prev, next, "同步 WebUI 设置失败。", publicChanged);
+        queueSettingsSave(
+          prev,
+          next,
+          translate("app.gatewaySettingsSyncFailed", next.locale),
+          publicChanged,
+        );
       },
     );
 

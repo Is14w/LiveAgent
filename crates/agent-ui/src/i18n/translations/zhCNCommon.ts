@@ -155,6 +155,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.configureModel": "点击下方按钮，配置供应商和模型。",
   "chat.goToSettings": "配置供应商",
   "chat.loading": "正在加载设置...",
+  "chat.loadingConversation": "正在加载对话...",
   "chat.sendMessage": "发送消息",
   "chat.send": "发送",
   "chat.stopGeneration": "停止生成",
