@@ -128,6 +128,15 @@ export function getImagePreviewMimeType(slide: ImagePreviewSlide) {
   return mimeTypeFromFileName(getImagePreviewFileName(slide, ""));
 }
 
+export function getImagePreviewDisplaySource(slide: ImagePreviewSlide) {
+  const source = slide.src.trim();
+  if (source) return source;
+
+  const inlineData = slide.dataBase64?.trim().replace(/\s/g, "");
+  if (!inlineData) return "";
+  return `data:${getImagePreviewMimeType(slide)};base64,${inlineData}`;
+}
+
 export function clampImagePreviewIndex(index: number, slideCount: number) {
   if (slideCount <= 0) return 0;
   return Math.min(Math.max(index, 0), slideCount - 1);

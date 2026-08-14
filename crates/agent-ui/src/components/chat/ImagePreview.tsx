@@ -26,6 +26,7 @@ import {
   fitImageViewerSize,
   getImagePreviewCapabilities,
   getImagePreviewDisplayName,
+  getImagePreviewDisplaySource,
   getImagePreviewFileName,
   getImagePreviewMimeType,
   IMAGE_VIEWER_MAX_SCALE,
@@ -193,7 +194,7 @@ export function ImagePreviewContextMenu(props: {
   const [error, setError] = useState<string | null>(null);
   const capabilities = getImagePreviewCapabilities(slide, supportsSystemImageOpen);
 
-  useLayoutEffect(() => {
+  const updateMenuPosition = useCallback(() => {
     const menu = menuRef.current;
     if (!menu) return;
     const rect = menu.getBoundingClientRect();
@@ -204,6 +205,21 @@ export function ImagePreviewContextMenu(props: {
     });
   }, [position.x, position.y]);
 
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    updateMenuPosition();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateMenuPosition);
+    observer.observe(menu);
+    return () => observer.disconnect();
+  }, [updateMenuPosition]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateMenuPosition);
+    return () => window.removeEventListener("resize", updateMenuPosition);
+  }, [updateMenuPosition]);
+
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       if (menuRef.current?.contains(event.target as Node)) return;
@@ -212,13 +228,14 @@ export function ImagePreviewContextMenu(props: {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      event.stopPropagation();
       onClose();
     };
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [onClose]);
 
@@ -369,6 +386,7 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
   const clampedIndex = clampImagePreviewIndex(activeIndex, slides.length);
   const slide = slides[clampedIndex];
   const activeSlideKey = slide ? `${slide.src}\0${slide.dataBase64 ?? ""}` : null;
+  const imageSource = slide ? getImagePreviewDisplaySource(slide) : "";
 
   useEffect(() => {
     if (!open || activeSlideKey === null) return;
@@ -696,7 +714,7 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
               <img
                 key={`${slide.src}:${slide.dataBase64?.length ?? 0}`}
                 className="h-full w-full select-none object-contain"
-                src={slide.src}
+                src={imageSource}
                 alt={slide.alt ?? getImagePreviewDisplayName(slide)}
                 draggable={false}
                 onLoad={(event) => {

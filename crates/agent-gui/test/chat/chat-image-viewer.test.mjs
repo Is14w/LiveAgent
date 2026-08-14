@@ -101,6 +101,14 @@ test("viewer index, image data parsing, and MIME inference cover inline and prox
     { dataBase64: "PHN2Zz4=", mimeType: "image/svg+xml", sizeBytes: 5 },
   );
   assert.equal(viewer.getImagePreviewMimeType({ src: "blob:local", fileName: "sketch.webp" }), "image/webp");
+  assert.equal(
+    viewer.getImagePreviewDisplaySource({
+      src: "",
+      dataBase64: " AQID\n",
+      mimeType: "image/png",
+    }),
+    "data:image/png;base64,AQID",
+  );
 
   const previousFetch = globalThis.fetch;
   const requests = [];
@@ -201,6 +209,10 @@ test("chat attachment sources preserve verified metadata and keep menus scoped t
   assert.match(viewerSource, /z-\[110\]/);
   assert.match(viewerSource, /event\.key === "Escape"/);
   assert.match(viewerSource, /event\.stopPropagation\(\)/);
+  assert.match(viewerSource, /document\.addEventListener\("keydown", onKeyDown, true\)/);
+  assert.match(viewerSource, /new ResizeObserver\(updateMenuPosition\)/);
+  assert.match(viewerSource, /window\.addEventListener\("resize", updateMenuPosition\)/);
+  assert.match(viewerSource, /src=\{imageSource\}/);
   assert.match(viewerSource, /onPointerDown/);
   assert.match(viewerSource, /onContextMenu/);
   assert.match(viewerSource, /zoomByStep\(-1\)/);
