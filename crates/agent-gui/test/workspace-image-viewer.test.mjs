@@ -18,6 +18,30 @@ test("image viewer normalizes rotation and clamps zoom scale", () => {
   assert.equal(viewer.clampImageViewerScale(9), 4);
 });
 
+test("image viewer scales proportionally for buttons and wheel input", () => {
+  assert.equal(viewer.imageViewerScaleAfterStep(1, 1), 1.05);
+  assert.equal(viewer.imageViewerScaleAfterStep(1, -1), 1 / 1.05);
+  assert.equal(viewer.imageViewerScaleAfterStep(0.25, -1), 0.25);
+  assert.equal(viewer.imageViewerScaleAfterWheelDelta(1, -100, 0), 1.05);
+  assert.equal(viewer.imageViewerScaleAfterWheelDelta(1, 100, 0), 1 / 1.05);
+  assert.equal(viewer.imageViewerScaleAfterWheelDelta(1, -6.25, 1), 1.05);
+});
+
+test("image viewer retains continuous angles for rotation transitions", () => {
+  const rotatedLeft = viewer.clampImageViewerState(
+    { scale: 1, rotation: -90, x: 0, y: 0 },
+    { imageSize: image, viewportSize: viewport },
+  );
+  const rotatedAcrossBoundary = viewer.clampImageViewerState(
+    { scale: 1, rotation: 360, x: 0, y: 0 },
+    { imageSize: image, viewportSize: viewport },
+  );
+
+  assert.equal(rotatedLeft.rotation, -90);
+  assert.equal(rotatedAcrossBoundary.rotation, 360);
+  assert.deepEqual(viewer.rotatedImageViewerSize(image, 360), image);
+});
+
 test("image viewer centres dimensions that fit inside the viewport", () => {
   assert.deepEqual(viewer.clampImageViewerPan({ x: 80, y: -80 }, {
     imageSize: image,

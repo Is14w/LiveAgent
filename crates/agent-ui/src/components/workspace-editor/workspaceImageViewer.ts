@@ -15,6 +15,9 @@ export type ImageViewerState = ImageViewerPan & {
 
 export const IMAGE_VIEWER_MIN_SCALE = 0.25;
 export const IMAGE_VIEWER_MAX_SCALE = 4;
+export const IMAGE_VIEWER_ZOOM_RATIO = 1.05;
+
+const IMAGE_VIEWER_WHEEL_ZOOM_SENSITIVITY = Math.log(IMAGE_VIEWER_ZOOM_RATIO) / 100;
 
 function finiteSize(value: number) {
   return Number.isFinite(value) && value > 0 ? value : 0;
@@ -22,6 +25,21 @@ function finiteSize(value: number) {
 
 export function clampImageViewerScale(scale: number) {
   return Math.min(Math.max(scale, IMAGE_VIEWER_MIN_SCALE), IMAGE_VIEWER_MAX_SCALE);
+}
+
+export function imageViewerScaleAfterStep(scale: number, direction: -1 | 1) {
+  const currentScale = clampImageViewerScale(scale);
+  return clampImageViewerScale(currentScale * IMAGE_VIEWER_ZOOM_RATIO ** direction);
+}
+
+export function imageViewerScaleAfterWheelDelta(scale: number, deltaY: number, deltaMode: number) {
+  const currentScale = clampImageViewerScale(scale);
+  if (!Number.isFinite(deltaY) || deltaY === 0) return currentScale;
+
+  const pixels = deltaMode === 1 ? deltaY * 16 : deltaMode === 2 ? deltaY * 100 : deltaY;
+  return clampImageViewerScale(
+    currentScale * Math.exp(-pixels * IMAGE_VIEWER_WHEEL_ZOOM_SENSITIVITY),
+  );
 }
 
 export function normalizeImageViewerRotation(degrees: number) {
@@ -94,7 +112,9 @@ export function clampImageViewerState(
   },
 ): ImageViewerState {
   const scale = clampImageViewerScale(state.scale);
-  const rotation = normalizeImageViewerRotation(state.rotation);
+  // Keep the angle continuous for CSS transitions. Geometry helpers normalize it
+  // independently, so 360 degrees still has the same dimensions as 0 degrees.
+  const rotation = Number.isFinite(state.rotation) ? Math.round(state.rotation / 90) * 90 : 0;
   const pan = clampImageViewerPan(state, { ...options, scale, rotation });
   return { ...pan, scale, rotation };
 }
