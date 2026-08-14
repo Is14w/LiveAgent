@@ -181,7 +181,8 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "app.windowPinnedHint": "Window is pinned above other apps. Click to unpin.",
     "app.settingsLoadFailed": "Failed to load settings. Default settings have been restored.",
     "app.settingsSaveFailed": "Failed to save settings.",
-    "app.settingsReloadFailed": "Failed to reload settings. The previous settings are still displayed.",
+    "app.settingsReloadFailed":
+      "Failed to reload settings. The previous settings are still displayed.",
     "app.gatewaySettingsSyncFailed": "Failed to sync WebUI settings.",
     "window.controls": "Window controls",
     "window.minimize": "Minimize",

@@ -29,11 +29,7 @@ import { loadWebSettings, persistWebSettings, type WebSettingsSaveState } from "
 import { asErrorMessage } from "../chatEventUtils";
 import { hasSettingsSyncChanged, resolveAppWorkspaceProjects } from "../historyUtils";
 
-export function getGatewaySettingsErrorMessage(
-  error: unknown,
-  fallback: string,
-  locale: Locale,
-) {
+export function getGatewaySettingsErrorMessage(error: unknown, fallback: string, locale: Locale) {
   if (error instanceof GatewaySettingsUpdateError && error.code === "settings_changed") {
     return t("app.settingsSshSettingsChanged", locale);
   }
@@ -183,12 +179,7 @@ export function useGatewaySettingsSync(params: {
       }
       settingsRef.current = next;
       setSettingsState(next);
-      queueSettingsSave(
-        prev,
-        next,
-        t("app.desktopSettingsSyncFailed", next.locale),
-        false,
-      );
+      queueSettingsSave(prev, next, t("app.desktopSettingsSyncFailed", next.locale), false);
     },
     [queueSettingsSave],
   );
@@ -240,10 +231,7 @@ export function useGatewaySettingsSync(params: {
       .catch((error) => {
         if (!cancelled) {
           setSettingsSyncError(
-            asErrorMessage(
-              error,
-              t("app.desktopSettingsSyncFailed", settingsRef.current.locale),
-            ),
+            asErrorMessage(error, t("app.desktopSettingsSyncFailed", settingsRef.current.locale)),
           );
           setSettingsSyncReady(true);
         }
