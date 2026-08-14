@@ -1,8 +1,15 @@
 import { X } from "@liveagent/ui/components/IconSet";
 import { type ReactNode, useMemo, useState } from "react";
-import { ImagePreview, type ImagePreviewSlide } from "./ImagePreview";
+import type { PendingUploadedFile } from "../../lib/chat/uploadedFiles";
+import {
+  ImagePreview,
+  ImagePreviewContextMenu,
+  type ImagePreviewSlide,
+} from "./ImagePreview";
 
 export function ComposerAttachmentCard(props: {
+  file?: PendingUploadedFile;
+  workspaceRoot?: string;
   fileName: string;
   pathTitle: string;
   imageSrc?: string | null;
@@ -15,6 +22,8 @@ export function ComposerAttachmentCard(props: {
   onRemove: () => void;
 }) {
   const {
+    file,
+    workspaceRoot,
     fileName,
     pathTitle,
     imageSrc,
@@ -27,10 +36,35 @@ export function ComposerAttachmentCard(props: {
     onRemove,
   } = props;
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const previewSlides = useMemo<ImagePreviewSlide[]>(
-    () => (imageSrc ? [{ src: imageSrc, alt: fileName, title: fileName }] : []),
-    [fileName, imageSrc],
+    () => {
+      if (!imageSrc) return [];
+      const workdir = workspaceRoot?.trim() ?? "";
+      const absolutePath = file?.absolutePath?.trim() ?? "";
+      const relativePath = file?.relativePath.trim() ?? "";
+      return [
+        {
+          src: imageSrc,
+          alt: fileName,
+          title: fileName,
+          fileName,
+          sizeBytes: file?.sizeBytes,
+          ...(file && workdir && absolutePath && relativePath
+            ? {
+                attachment: {
+                  workdir,
+                  absolutePath,
+                  relativePath,
+                },
+              }
+            : {}),
+        },
+      ];
+    },
+    [file, fileName, imageSrc, workspaceRoot],
   );
+  const previewSlide = previewSlides[0];
 
   // 图片附件：纯缩略图方块，点击放大预览，文件名放悬浮提示，角标删除。
   if (imageSrc || isImageLoading) {
@@ -46,6 +80,10 @@ export function ComposerAttachmentCard(props: {
             className="block h-full w-full cursor-zoom-in outline-hidden focus-visible:ring-2 focus-visible:ring-ring/60"
             aria-label={previewLabel ? `${previewLabel}: ${fileName}` : fileName}
             title={previewLabel}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu({ x: event.clientX, y: event.clientY });
+            }}
           >
             <img src={imageSrc} alt="" draggable={false} className="h-full w-full object-cover" />
           </button>
@@ -68,6 +106,14 @@ export function ComposerAttachmentCard(props: {
             slides={previewSlides}
             closeLabel={closePreviewLabel}
             onClose={() => setPreviewOpen(false)}
+          />
+        ) : null}
+        {contextMenu && previewSlide ? (
+          <ImagePreviewContextMenu
+            slide={previewSlide}
+            position={contextMenu}
+            onOpen={() => setPreviewOpen(true)}
+            onClose={() => setContextMenu(null)}
           />
         ) : null}
       </div>

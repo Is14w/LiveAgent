@@ -815,6 +815,23 @@ fn canonicalize_uploaded_attachment_path(
     Ok(target)
 }
 
+fn resolve_uploaded_image_target(
+    workdir: &str,
+    absolute_path: &str,
+) -> Result<(PathBuf, &'static str), String> {
+    let workdir = canonicalize_upload_workdir(workdir)?;
+    let target = canonicalize_uploaded_file_path(absolute_path)?;
+    if !is_allowed_attachment_target(&workdir, &target) {
+        return Err(format!(
+            "Image path is outside the current workspace and upload staging area: {}",
+            target.display()
+        ));
+    }
+    let mime_type = infer_image_upload_mime(&target)
+        .ok_or_else(|| format!("{} is not a supported image file", target.display()))?;
+    Ok((target, mime_type))
+}
+
 fn infer_native_attachment_mime(path: &Path, kind: Option<&str>) -> String {
     if let Some(mime_type) = infer_image_upload_mime(path) {
         return mime_type.to_string();
@@ -1139,16 +1156,7 @@ pub(crate) fn system_read_uploaded_image_preview_sync(
     workdir: String,
     absolute_path: String,
 ) -> Result<SystemUploadedImagePreviewResponse, String> {
-    let workdir = canonicalize_upload_workdir(&workdir)?;
-    let target = canonicalize_uploaded_file_path(&absolute_path)?;
-    if !is_allowed_attachment_target(&workdir, &target) {
-        return Err(format!(
-            "图片路径超出当前工作目录与上传暂存区：{}",
-            target.display()
-        ));
-    }
-    let mime_type = infer_image_upload_mime(&target)
-        .ok_or_else(|| format!("{} 不是受支持的图片文件", target.display()))?;
+    let (target, mime_type) = resolve_uploaded_image_target(&workdir, &absolute_path)?;
     let bytes = fs::read(&target).map_err(|e| format!("读取图片失败 {}: {e}", target.display()))?;
     if bytes.len() > UPLOADED_IMAGE_PREVIEW_MAX_BYTES {
         return Err(format!(
@@ -1161,6 +1169,14 @@ pub(crate) fn system_read_uploaded_image_preview_sync(
         mime_type: mime_type.to_string(),
         data: BASE64_STANDARD.encode(bytes),
     })
+}
+
+pub(crate) fn system_open_uploaded_image_sync(
+    workdir: String,
+    absolute_path: String,
+) -> Result<(), String> {
+    let (target, _) = resolve_uploaded_image_target(&workdir, &absolute_path)?;
+    crate::commands::fs::spawn_workspace_open_command(&target, "open")
 }
 
 pub(crate) fn system_read_uploaded_native_attachment_sync(
@@ -2375,6 +2391,18 @@ pub async fn system_read_uploaded_image_preview(
 }
 
 #[tauri::command(rename_all = "snake_case")]
+pub async fn system_open_uploaded_image(
+    workdir: String,
+    absolute_path: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        system_open_uploaded_image_sync(workdir, absolute_path)
+    })
+    .await
+    .map_err(|e| format!("system_open_uploaded_image join failed: {e}"))?
+}
+
+#[tauri::command(rename_all = "snake_case")]
 pub async fn system_read_uploaded_native_attachment(
     workdir: String,
     absolute_path: Option<String>,
@@ -3358,6 +3386,75 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&batch);
+    }
+
+    #[test]
+    fn resolve_uploaded_image_target_allows_workspace_and_staging_images() {
+        let temp = tempdir().expect("create temp dir");
+        let workdir = temp.path().join("workspace");
+        fs::create_dir_all(&workdir).expect("create workdir");
+        let workspace_image = workdir.join("diagram.png");
+        fs::write(&workspace_image, b"not-decoded-by-this-validation").expect("write image");
+
+        let (target, mime_type) = resolve_uploaded_image_target(
+            &workdir.to_string_lossy(),
+            &workspace_image.to_string_lossy(),
+        )
+        .expect("workspace image should be authorized");
+        assert_eq!(
+            target,
+            fs::canonicalize(&workspace_image).expect("canonicalize image")
+        );
+        assert_eq!(mime_type, "image/png");
+
+        let staging = upload_staging_base().expect("resolve staging base");
+        let batch = staging.join(format!("test-batch-image-open-{}", std::process::id()));
+        fs::create_dir_all(&batch).expect("create staging batch");
+        let staged_image = batch.join("generated.webp");
+        fs::write(&staged_image, b"staged-image").expect("write staged image");
+
+        let (_, staged_mime_type) = resolve_uploaded_image_target(
+            &workdir.to_string_lossy(),
+            &staged_image.to_string_lossy(),
+        )
+        .expect("staging image should be authorized");
+        assert_eq!(staged_mime_type, "image/webp");
+
+        let _ = fs::remove_dir_all(&batch);
+    }
+
+    #[test]
+    fn resolve_uploaded_image_target_rejects_directories_non_images_invalid_workdirs_and_escapes() {
+        let temp = tempdir().expect("create temp dir");
+        let workdir = temp.path().join("workspace");
+        fs::create_dir_all(&workdir).expect("create workdir");
+
+        let directory_error =
+            resolve_uploaded_image_target(&workdir.to_string_lossy(), &workdir.to_string_lossy())
+                .expect_err("directories must be rejected");
+        assert!(!directory_error.trim().is_empty());
+
+        let text_file = workdir.join("notes.txt");
+        fs::write(&text_file, b"notes").expect("write text file");
+        let non_image_error =
+            resolve_uploaded_image_target(&workdir.to_string_lossy(), &text_file.to_string_lossy())
+                .expect_err("non-images must be rejected");
+        assert!(non_image_error.contains("not a supported image file"));
+
+        let outside = temp.path().join("outside.png");
+        fs::write(&outside, b"outside").expect("write outside image");
+        let outside_error =
+            resolve_uploaded_image_target(&workdir.to_string_lossy(), &outside.to_string_lossy())
+                .expect_err("outside images must be rejected");
+        assert!(outside_error.contains("outside the current workspace"));
+
+        let invalid_workdir = temp.path().join("missing-workspace");
+        let workdir_error = resolve_uploaded_image_target(
+            &invalid_workdir.to_string_lossy(),
+            &outside.to_string_lossy(),
+        )
+        .expect_err("missing workdir must be rejected");
+        assert!(!workdir_error.trim().is_empty());
     }
 
     #[test]

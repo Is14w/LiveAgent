@@ -255,6 +255,7 @@ macro_rules! app_invoke_handler {
             commands::system::system_import_uploaded_readable_files,
             commands::system::system_pick_readable_files,
             commands::system::system_read_uploaded_image_preview,
+            commands::system::system_open_uploaded_image,
             commands::system::system_read_uploaded_native_attachment,
             commands::system::system_list_skill_files,
             commands::system::system_ensure_builtin_skills,

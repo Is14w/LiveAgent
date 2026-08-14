@@ -152,6 +152,8 @@ function PendingComposerAttachment(props: {
 
   return (
     <ComposerAttachmentCard
+      file={file}
+      workspaceRoot={workdir}
       fileName={file.fileName}
       pathTitle={file.relativePath}
       imageSrc={imageSrc}
