@@ -979,23 +979,15 @@ function WorkspaceImagePreviewBody(props: {
   );
   const viewerOptions = useMemo(() => ({ imageSize, viewportSize }), [imageSize, viewportSize]);
   const displayDimensions = formatImageDimensions(naturalSize.width, naturalSize.height);
-  const canPan =
-    clampImageViewerPan(
-      { x: 1_000_000, y: 1_000_000 },
-      {
-        ...viewerOptions,
-        scale: viewerState.scale,
-        rotation: viewerState.rotation,
-      },
-    ).x > 0 ||
-    clampImageViewerPan(
-      { x: 1_000_000, y: 1_000_000 },
-      {
-        ...viewerOptions,
-        scale: viewerState.scale,
-        rotation: viewerState.rotation,
-      },
-    ).y > 0;
+  const maxPan = clampImageViewerPan(
+    { x: 1_000_000, y: 1_000_000 },
+    {
+      ...viewerOptions,
+      scale: viewerState.scale,
+      rotation: viewerState.rotation,
+    },
+  );
+  const canPan = maxPan.x > 0 || maxPan.y > 0;
 
   const openImageAt = useCallback(
     (index: number) => {
@@ -1147,34 +1139,21 @@ function WorkspaceImagePreviewBody(props: {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (contextMenu) {
-          event.preventDefault();
-          setContextMenu(null);
-          setContextMenuPosition(null);
-          return;
-        }
-        if (showInfo) {
-          event.preventDefault();
-          setShowInfo(false);
-          return;
-        }
-      }
-
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "c") {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (contextMenu) {
         event.preventDefault();
-        void handleCopyImage();
+        setContextMenu(null);
+        setContextMenuPosition(null);
         return;
       }
-
-      if (event.key === "0") {
+      if (showInfo) {
         event.preventDefault();
-        setViewerState(resetImageViewerState());
+        setShowInfo(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [contextMenu, handleCopyImage, showInfo]);
+  }, [contextMenu, showInfo]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/25">
@@ -1271,16 +1250,38 @@ function WorkspaceImagePreviewBody(props: {
         ref={viewportRef}
         role="application"
         aria-label={t("workspaceFilePreview.imageViewer")}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: The application-role viewport takes focus so its copy/reset shortcuts stay scoped to it instead of a window listener.
+        tabIndex={0}
         className={cn(
-          "relative min-h-0 flex-1 touch-none select-none overflow-hidden",
+          "relative min-h-0 flex-1 touch-none select-none overflow-hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
           isDragging ? "cursor-grabbing" : canPan ? "cursor-grab" : "cursor-default",
         )}
+        onKeyDown={(event) => {
+          // Scoped to the focused viewport so chat/sidebar inputs keep native
+          // copy and digit keys while the preview is open.
+          if (event.currentTarget !== event.target || event.defaultPrevented) return;
+          if (
+            (event.ctrlKey || event.metaKey) &&
+            !event.altKey &&
+            !event.shiftKey &&
+            event.key.toLowerCase() === "c"
+          ) {
+            event.preventDefault();
+            void handleCopyImage();
+            return;
+          }
+          if (event.key === "0" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault();
+            setViewerState(resetImageViewerState());
+          }
+        }}
         onWheel={(event) => {
           if (event.deltaY === 0) return;
           event.preventDefault();
           zoomByWheel(event.deltaY, event.deltaMode, imageViewerAnchor(event, viewportRef.current));
         }}
         onPointerDown={(event) => {
+          event.currentTarget.focus({ preventScroll: true });
           if (contextMenu) {
             setContextMenu(null);
             setContextMenuPosition(null);

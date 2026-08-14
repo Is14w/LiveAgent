@@ -1001,7 +1001,6 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "workspaceFilePreview.nextImage": "Next image",
   "workspaceFilePreview.zoomOut": "Zoom out",
   "workspaceFilePreview.zoomIn": "Zoom in",
-  "workspaceFilePreview.rotateImage": "Rotate image",
   "workspaceFilePreview.rotateLeft": "Rotate left 90 degrees",
   "workspaceFilePreview.rotateRight": "Rotate right 90 degrees",
   "workspaceFilePreview.resetImage": "Reset view",

@@ -954,7 +954,6 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "workspaceFilePreview.nextImage": "下一张",
   "workspaceFilePreview.zoomOut": "缩小",
   "workspaceFilePreview.zoomIn": "放大",
-  "workspaceFilePreview.rotateImage": "旋转图片",
   "workspaceFilePreview.rotateLeft": "向左旋转 90 度",
   "workspaceFilePreview.rotateRight": "向右旋转 90 度",
   "workspaceFilePreview.resetImage": "重置视图",
