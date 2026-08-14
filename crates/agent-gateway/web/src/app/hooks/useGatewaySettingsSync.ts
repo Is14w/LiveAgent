@@ -14,7 +14,7 @@ import {
 } from "@liveagent/ui/lib/settings/sync";
 import { applyFontFamilies } from "@liveagent/ui/lib/shared/fontFamily";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { t, type Locale } from "@/i18n/config";
+import { type Locale, t } from "@/i18n/config";
 import type { GatewayWebSocketClientLike } from "@/lib/gatewaySocket";
 import { GatewaySettingsUpdateError } from "@/lib/gatewaySocketRpc";
 import {
