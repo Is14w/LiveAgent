@@ -1356,6 +1356,7 @@ export function normalizeSettings(input?: Partial<AppSettings> | null): AppSetti
     normalizeSelectedModel(obj.selectedModel),
     customProviders,
   );
+  const locale = Object.hasOwn(obj, "locale") ? obj.locale : defaults.locale;
 
   return {
     system: normalizeSystemSettings(obj.system ?? defaults.system),
@@ -1380,7 +1381,7 @@ export function normalizeSettings(input?: Partial<AppSettings> | null): AppSetti
     ),
     selectedModel,
     theme: normalizeTheme(obj.theme),
-    locale: normalizeLocale(obj.locale ?? defaults.locale),
+    locale: normalizeLocale(locale),
     closeWindowBehavior: normalizeCloseWindowBehavior(obj.closeWindowBehavior),
   };
 }

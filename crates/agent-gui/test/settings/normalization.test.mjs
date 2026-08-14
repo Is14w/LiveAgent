@@ -32,6 +32,13 @@ test("locale defaults to the system language when no saved preference exists", a
     assert.equal(settings.normalizeSettings({}).locale, "en-US");
     assert.equal(settings.normalizeSettings({ locale: "en-US" }).locale, "en-US");
     assert.equal(settings.normalizeSettings({ locale: "fr-FR" }).locale, "zh-CN");
+    assert.equal(settings.normalizeSettings({ locale: null }).locale, "zh-CN");
+  });
+});
+
+test("locale detection falls back to navigator.language", async () => {
+  await withNavigator({ languages: [], language: "en-GB" }, () => {
+    assert.equal(settings.getDefaultSettings().locale, "en-US");
   });
 });
 
