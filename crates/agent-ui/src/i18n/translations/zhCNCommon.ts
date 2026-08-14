@@ -5,6 +5,8 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "app.errorBoundaryTitle": "页面出现异常",
   "app.loading": "正在加载设置...",
   "app.name": "LiveAgent",
+  "app.settingsSshSettingsChanged":
+    "SSH 设置已在另一端更新，已刷新为最新状态，请重新提交。",
   "window.close": "关闭",
   "tooltip.settings": "设置",
   "tooltip.switchToLight": "切换到浅色模式",

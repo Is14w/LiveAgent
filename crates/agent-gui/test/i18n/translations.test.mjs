@@ -59,6 +59,11 @@ test("loading states and desktop settings fallbacks are localized", () => {
     i18n.t("app.gatewaySettingsSyncFailed", "en-US"),
     "Failed to sync WebUI settings.",
   );
+  assert.equal(
+    i18n.t("app.settingsSshSettingsChanged", "en-US"),
+    "SSH settings were updated elsewhere. The latest settings have been loaded; submit your changes again.",
+  );
+  assert.ok(i18n.t("app.settingsSshSettingsChanged", "zh-CN"));
 });
 
 test("usage query labels exist in both locales", () => {

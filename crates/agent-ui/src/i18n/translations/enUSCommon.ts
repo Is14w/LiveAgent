@@ -6,6 +6,8 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "app.errorBoundaryTitle": "Something went wrong",
   "app.loading": "Loading settings...",
   "app.name": "LiveAgent",
+  "app.settingsSshSettingsChanged":
+    "SSH settings were updated elsewhere. The latest settings have been loaded; submit your changes again.",
   "window.close": "Close",
   "tooltip.settings": "Settings",
   "tooltip.switchToLight": "Switch to Light Mode",

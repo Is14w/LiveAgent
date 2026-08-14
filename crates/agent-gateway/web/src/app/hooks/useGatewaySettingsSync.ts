@@ -14,7 +14,9 @@ import {
 } from "@liveagent/ui/lib/settings/sync";
 import { applyFontFamilies } from "@liveagent/ui/lib/shared/fontFamily";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t, type Locale } from "@/i18n/config";
 import type { GatewayWebSocketClientLike } from "@/lib/gatewaySocket";
+import { GatewaySettingsUpdateError } from "@/lib/gatewaySocketRpc";
 import {
   type AppSettings,
   normalizeSettings,
@@ -26,6 +28,17 @@ import { loadWebSettings, persistWebSettings, type WebSettingsSaveState } from "
 
 import { asErrorMessage } from "../chatEventUtils";
 import { hasSettingsSyncChanged, resolveAppWorkspaceProjects } from "../historyUtils";
+
+export function getGatewaySettingsErrorMessage(
+  error: unknown,
+  fallback: string,
+  locale: Locale,
+) {
+  if (error instanceof GatewaySettingsUpdateError && error.code === "settings_changed") {
+    return t("app.settingsSshSettingsChanged", locale);
+  }
+  return asErrorMessage(error, fallback);
+}
 
 export function useGatewaySettingsSync(params: {
   token: string;
@@ -121,6 +134,7 @@ export function useGatewaySettingsSync(params: {
           }
         })
         .catch((error) => {
+          console.error("Failed to persist gateway settings", error);
           if (syncGateway && api) {
             void api
               .getSettings()
@@ -138,7 +152,7 @@ export function useGatewaySettingsSync(params: {
           if (settingsSaveSequenceRef.current === saveSequence) {
             setSettingsSaveState({
               status: "error",
-              message: asErrorMessage(error, fallback),
+              message: getGatewaySettingsErrorMessage(error, fallback, settingsRef.current.locale),
             });
           }
         });
