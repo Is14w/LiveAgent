@@ -611,17 +611,17 @@ func (m *Manager) setRelayHealth(agentID string, health *gatewayv2.TunnelHealth)
 	}
 	// 永久删除后，删除前已发出的异步探测可能迟到；不存在的登记项不得重新
 	// 写回 relay 状态。普通离线仍保留 registry entry，因此不受影响。
+	m.tunnels.mu.Lock()
 	m.registry.mu.RLock()
 	_, registered := m.registry.agents[agentID]
+	if registered {
+		m.tunnels.relays[agentID] = health
+	}
+	m.registry.mu.RUnlock()
+	m.tunnels.mu.Unlock()
 	if !registered {
-		m.registry.mu.RUnlock()
 		return
 	}
-	m.tunnels.mu.Lock()
-	m.tunnels.relays[agentID] = health
-	m.tunnels.mu.Unlock()
-	m.registry.mu.RUnlock()
-	// 广播会读取 registry 快照，必须在释放读锁后执行。
 	m.broadcastTunnelState(agentID)
 }
 
