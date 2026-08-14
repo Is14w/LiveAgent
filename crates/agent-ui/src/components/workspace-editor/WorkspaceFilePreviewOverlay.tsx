@@ -492,8 +492,9 @@ export function WorkspaceFilePreviewOverlay(props: WorkspaceFilePreviewOverlayPr
   );
   const canOpenEditor = Boolean(activePreviewRequest && isWorkspaceEditablePreviewPath(activePath));
   const canOpenExternal = Boolean(
-    supportsExternalWorkspaceOpen && activePreviewRequest && activePath && !canOpenEditor,
+    supportsExternalWorkspaceOpen && activePreviewRequest && activePath,
   );
+  const showHeaderOpenExternal = canOpenExternal && !canOpenEditor && kind !== "image";
 
   const openImagePath = useCallback(
     (path: string, transitionDirection: ImagePreviewTransitionDirection = 0) => {
@@ -554,7 +555,7 @@ export function WorkspaceFilePreviewOverlay(props: WorkspaceFilePreviewOverlayPr
               <FilePenLine className="h-4 w-4" />
             </button>
           ) : null}
-          {canOpenExternal ? (
+          {showHeaderOpenExternal ? (
             <button
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -605,8 +606,10 @@ export function WorkspaceFilePreviewOverlay(props: WorkspaceFilePreviewOverlayPr
             imagePaths={imagePaths}
             imageTransitionDirection={imageTransitionDirection}
             isSwitchingImage={loading && preview.kind === "image"}
+            canOpenImageInSystemViewer={canOpenExternal}
             spreadsheet={spreadsheet}
             activeSheetName={activeSheetName}
+            onOpenImageInSystemViewer={() => void openExternal()}
             onOpenImagePath={openImagePath}
             onActiveSheetNameChange={setActiveSheetName}
             onActionError={setError}
@@ -643,8 +646,10 @@ function PreviewBody(props: {
   imagePaths: string[];
   imageTransitionDirection: ImagePreviewTransitionDirection;
   isSwitchingImage: boolean;
+  canOpenImageInSystemViewer: boolean;
   spreadsheet: SpreadsheetTable | null;
   activeSheetName: string;
+  onOpenImageInSystemViewer: () => void;
   onOpenImagePath: (path: string, direction?: ImagePreviewTransitionDirection) => void;
   onActiveSheetNameChange: (sheetName: string) => void;
   onActionError: (message: string | null) => void;
@@ -657,8 +662,10 @@ function PreviewBody(props: {
     imagePaths,
     imageTransitionDirection,
     isSwitchingImage,
+    canOpenImageInSystemViewer,
     spreadsheet,
     activeSheetName,
+    onOpenImageInSystemViewer,
     onOpenImagePath,
     onActiveSheetNameChange,
     onActionError,
@@ -696,10 +703,12 @@ function PreviewBody(props: {
       <WorkspaceImagePreviewBody
         key={`${preview.path}:${preview.contentHash}`}
         activePath={activePath}
+        canOpenInSystemViewer={canOpenImageInSystemViewer}
         imagePaths={imagePaths}
         transitionDirection={imageTransitionDirection}
         isSwitchingImage={isSwitchingImage}
         preview={preview}
+        onOpenInSystemViewer={onOpenImageInSystemViewer}
         onOpenImagePath={onOpenImagePath}
         onActionError={onActionError}
       />
@@ -907,8 +916,10 @@ function WorkspaceImagePreviewBody(props: {
   preview: LoadedPreview;
   activePath: string;
   imagePaths: string[];
+  canOpenInSystemViewer: boolean;
   transitionDirection: ImagePreviewTransitionDirection;
   isSwitchingImage: boolean;
+  onOpenInSystemViewer: () => void;
   onOpenImagePath: (path: string, direction?: ImagePreviewTransitionDirection) => void;
   onActionError: (message: string | null) => void;
 }) {
@@ -916,8 +927,10 @@ function WorkspaceImagePreviewBody(props: {
     preview,
     activePath,
     imagePaths,
+    canOpenInSystemViewer,
     transitionDirection,
     isSwitchingImage,
+    onOpenInSystemViewer,
     onOpenImagePath,
     onActionError,
   } = props;
@@ -1211,6 +1224,14 @@ function WorkspaceImagePreviewBody(props: {
           >
             <Download className="h-4 w-4" />
           </ImagePreviewToolButton>
+          {canOpenInSystemViewer ? (
+            <ImagePreviewToolButton
+              label={t("workspaceFilePreview.openInSystemImageViewer")}
+              onClick={onOpenInSystemViewer}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </ImagePreviewToolButton>
+          ) : null}
           <ImagePreviewToolButton
             label={t("workspaceFilePreview.copyImage")}
             onClick={() => void handleCopyImage()}
@@ -1312,23 +1333,28 @@ function WorkspaceImagePreviewBody(props: {
             style={{
               height: `${imageSize.height}px`,
               width: `${imageSize.width}px`,
-              transform: `translate(${viewerState.x}px, ${viewerState.y}px) scale(${viewerState.scale}) rotate(${viewerState.rotation}deg)`,
+              transform: `translate(${viewerState.x}px, ${viewerState.y}px) scale(${viewerState.scale})`,
               transformOrigin: "center",
               transition: isDragging ? "none" : "transform 120ms ease-out",
             }}
           >
-            <img
-              className="h-full w-full select-none object-contain"
-              src={preview.blobUrl}
-              alt={basename(preview.path)}
-              draggable={false}
-              onLoad={(event) => {
-                setNaturalSize({
-                  width: event.currentTarget.naturalWidth,
-                  height: event.currentTarget.naturalHeight,
-                });
-              }}
-            />
+            <div
+              className="h-full w-full"
+              style={{ transform: `rotate(${viewerState.rotation}deg)`, transformOrigin: "center" }}
+            >
+              <img
+                className="h-full w-full select-none object-contain"
+                src={preview.blobUrl}
+                alt={basename(preview.path)}
+                draggable={false}
+                onLoad={(event) => {
+                  setNaturalSize({
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  });
+                }}
+              />
+            </div>
           </div>
         </div>
         {showInfo ? (
@@ -1370,7 +1396,7 @@ function WorkspaceImagePreviewBody(props: {
               <div
                 ref={contextMenuRef}
                 role="menu"
-                className="fixed z-[90] min-w-48 border border-border bg-popover p-1 text-xs text-popover-foreground shadow-2xl"
+                className="fixed z-[90] min-w-48 rounded-lg border border-border bg-popover p-1 text-xs text-popover-foreground shadow-2xl"
                 style={{
                   left: (contextMenuPosition ?? contextMenu).x,
                   top: (contextMenuPosition ?? contextMenu).y,
@@ -1434,6 +1460,21 @@ function WorkspaceImagePreviewBody(props: {
                   <Download className="h-3.5 w-3.5" />
                   {t("workspaceFilePreview.downloadImage")}
                 </button>
+                {canOpenInSystemViewer ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-accent"
+                    onClick={() => {
+                      onOpenInSystemViewer();
+                      setContextMenu(null);
+                      setContextMenuPosition(null);
+                    }}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    {t("workspaceFilePreview.openInSystemImageViewer")}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   role="menuitem"
