@@ -68,12 +68,12 @@ function renderRow(overrides = {}) {
   return { tree, calls };
 }
 
-test("workspace file tree opens files with one click", () => {
+test("workspace file tree opens files from anywhere in the hovered row", () => {
   const { tree, calls } = renderRow();
-  const labelButton = findAll(tree, (node) => node.type === "button")[0];
 
-  assert.equal(labelButton.props.onDoubleClick, undefined);
-  labelButton.props.onClick();
+  assert.equal(tree.props.onDoubleClick, undefined);
+  assert.equal(typeof tree.props.onClick, "function");
+  tree.props.onClick();
 
   assert.deepEqual(calls, [
     ["select", "assets/preview.png"],
@@ -87,16 +87,21 @@ test("workspace file tree expands directories with one click", () => {
     name: "assets",
     kind: "dir",
   });
-  const [expandButton, labelButton] = findAll(tree, (node) => node.type === "button");
+  const [expandButton] = findAll(tree, (node) => node.type === "button");
 
-  assert.equal(labelButton.props.onDoubleClick, undefined);
-  labelButton.props.onClick();
+  tree.props.onClick();
   assert.deepEqual(calls, [
     ["select", "assets"],
     ["toggle", "assets", false],
   ]);
 
   calls.length = 0;
-  expandButton.props.onClick();
+  let propagationStopped = false;
+  expandButton.props.onClick({
+    stopPropagation() {
+      propagationStopped = true;
+    },
+  });
+  assert.equal(propagationStopped, true);
   assert.deepEqual(calls, [["toggle", "assets", false]]);
 });
