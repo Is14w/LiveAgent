@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, normalizeLocale } from "@liveagent/app/i18n/config";
+import { detectSystemLocale, normalizeLocale } from "@liveagent/app/i18n/config";
 import {
   ANTHROPIC_LONG_CONTEXT_WINDOW,
   ANTHROPIC_STANDARD_CONTEXT_WINDOW,
@@ -1341,7 +1341,7 @@ export function getDefaultSettings(): AppSettings {
     chatRuntimeControls: DEFAULT_CHAT_RUNTIME_CONTROLS,
     selectedModel: undefined,
     theme: "light",
-    locale: DEFAULT_LOCALE,
+    locale: detectSystemLocale(),
     closeWindowBehavior: "minimize",
   };
 }
@@ -1380,7 +1380,7 @@ export function normalizeSettings(input?: Partial<AppSettings> | null): AppSetti
     ),
     selectedModel,
     theme: normalizeTheme(obj.theme),
-    locale: normalizeLocale(obj.locale),
+    locale: normalizeLocale(obj.locale ?? defaults.locale),
     closeWindowBehavior: normalizeCloseWindowBehavior(obj.closeWindowBehavior),
   };
 }
