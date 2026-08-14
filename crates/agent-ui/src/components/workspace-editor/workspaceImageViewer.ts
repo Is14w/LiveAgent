@@ -23,6 +23,52 @@ function finiteSize(value: number) {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+function isAbsoluteWorkspacePath(path: string) {
+  return (
+    path.startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(path) ||
+    /^\\\\/.test(path) ||
+    /^\/\/[^/\\]+[\\/][^/\\]+/.test(path)
+  );
+}
+
+/** Returns an absolute local path without changing workspace API paths. */
+export function workspaceImageAbsolutePathForCopy(workdir: string, path: string) {
+  const rawPath = path.trim();
+  if (isAbsoluteWorkspacePath(rawPath)) return rawPath;
+
+  const normalizedPath = rawPath.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  const root = workdir.trim();
+  if (!normalizedPath) return root;
+  if (!root) return normalizedPath;
+
+  const separator = root.includes("\\") && !root.includes("/") ? "\\" : "/";
+  const trimmedRoot = root.replace(/[\\/]+$/, "");
+  const relativePath = normalizedPath.replace(/\//g, separator);
+  return trimmedRoot ? `${trimmedRoot}${separator}${relativePath}` : `${separator}${relativePath}`;
+}
+
+/** Returns a path relative to the workspace root when the source is inside it. */
+export function workspaceImageRelativePathForCopy(workdir: string, path: string) {
+  const rawPath = path.trim();
+  if (!isAbsoluteWorkspacePath(rawPath)) {
+    return rawPath.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  }
+
+  const root = workdir.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+  const absolutePath = rawPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (!root) return rawPath;
+
+  const isWindowsPath = /^[a-zA-Z]:\//.test(root) || root.startsWith("//");
+  const comparableRoot = isWindowsPath ? root.toLowerCase() : root;
+  const comparablePath = isWindowsPath ? absolutePath.toLowerCase() : absolutePath;
+  if (comparablePath === comparableRoot) return "";
+  if (comparablePath.startsWith(`${comparableRoot}/`)) {
+    return absolutePath.slice(root.length + 1);
+  }
+  return rawPath;
+}
+
 export function clampImageViewerScale(scale: number) {
   return Math.min(Math.max(scale, IMAGE_VIEWER_MIN_SCALE), IMAGE_VIEWER_MAX_SCALE);
 }

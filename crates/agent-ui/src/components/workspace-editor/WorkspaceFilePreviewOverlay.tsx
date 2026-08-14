@@ -43,6 +43,8 @@ import {
   imageViewerScaleAfterStep,
   imageViewerScaleAfterWheelDelta,
   resetImageViewerState,
+  workspaceImageAbsolutePathForCopy,
+  workspaceImageRelativePathForCopy,
   zoomImageViewerAtPoint,
 } from "@liveagent/ui/components/workspace-editor/workspaceImageViewer";
 import { useLocale } from "@liveagent/ui/i18n/index";
@@ -709,6 +711,7 @@ function PreviewBody(props: {
         transitionDirection={imageTransitionDirection}
         isSwitchingImage={isSwitchingImage}
         preview={preview}
+        workdir={workdir}
         onOpenInSystemViewer={onOpenImageInSystemViewer}
         onOpenImagePath={onOpenImagePath}
         onActionError={onActionError}
@@ -915,6 +918,7 @@ async function copyTextToClipboard(text: string) {
 
 function WorkspaceImagePreviewBody(props: {
   preview: LoadedPreview;
+  workdir: string;
   activePath: string;
   imagePaths: string[];
   canOpenInSystemViewer: boolean;
@@ -926,6 +930,7 @@ function WorkspaceImagePreviewBody(props: {
 }) {
   const {
     preview,
+    workdir,
     activePath,
     imagePaths,
     canOpenInSystemViewer,
@@ -1103,13 +1108,21 @@ function WorkspaceImagePreviewBody(props: {
     }
   }, [onActionError, preview, t]);
 
-  const handleCopyPath = useCallback(async () => {
+  const handleCopyAbsolutePath = useCallback(async () => {
     try {
-      await copyTextToClipboard(activePath);
+      await copyTextToClipboard(workspaceImageAbsolutePathForCopy(workdir, activePath));
     } catch (error) {
       onActionError(toMessage(error, t("workspaceFilePreview.copyPathFailed")));
     }
-  }, [activePath, onActionError, t]);
+  }, [activePath, onActionError, t, workdir]);
+
+  const handleCopyRelativePath = useCallback(async () => {
+    try {
+      await copyTextToClipboard(workspaceImageRelativePathForCopy(workdir, activePath));
+    } catch (error) {
+      onActionError(toMessage(error, t("workspaceFilePreview.copyPathFailed")));
+    }
+  }, [activePath, onActionError, t, workdir]);
 
   const handleSaveImage = useCallback(async () => {
     try {
@@ -1494,13 +1507,26 @@ function WorkspaceImagePreviewBody(props: {
                   role="menuitem"
                   className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-accent"
                   onClick={() => {
-                    void handleCopyPath();
+                    void handleCopyAbsolutePath();
                     setContextMenu(null);
                     setContextMenuPosition(null);
                   }}
                 >
                   <Copy className="h-3.5 w-3.5" />
-                  {t("workspaceFilePreview.copyImagePath")}
+                  {t("workspaceFilePreview.copyImageAbsolutePath")}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-accent"
+                  onClick={() => {
+                    void handleCopyRelativePath();
+                    setContextMenu(null);
+                    setContextMenuPosition(null);
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {t("workspaceFilePreview.copyImageRelativePath")}
                 </button>
                 <button
                   type="button"

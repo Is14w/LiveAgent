@@ -87,8 +87,8 @@ export const FileTreeRow = memo(function FileTreeRow(props: FileTreeRowProps) {
           hidden && "opacity-60 group-hover:opacity-80",
         )}
         title={title}
-        onClick={() => onSelect(path)}
-        onDoubleClick={() => {
+        onClick={() => {
+          onSelect(path);
           if (kind === "dir") {
             onToggle(path, expanded);
             return;

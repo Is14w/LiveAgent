@@ -27,6 +27,40 @@ test("image viewer scales proportionally for buttons and wheel input", () => {
   assert.equal(viewer.imageViewerScaleAfterWheelDelta(1, -6.25, 1), 1.05);
 });
 
+test("image viewer copies absolute and workspace-relative paths", () => {
+  assert.equal(
+    viewer.workspaceImageAbsolutePathForCopy("H:\\Codezone\\LiveAgent", "assets/preview.png"),
+    "H:\\Codezone\\LiveAgent\\assets\\preview.png",
+  );
+  assert.equal(
+    viewer.workspaceImageAbsolutePathForCopy("/workspace/liveagent", "assets/preview.png"),
+    "/workspace/liveagent/assets/preview.png",
+  );
+  assert.equal(
+    viewer.workspaceImageAbsolutePathForCopy("H:\\Codezone\\LiveAgent", "H:\\images\\preview.png"),
+    "H:\\images\\preview.png",
+  );
+  assert.equal(
+    viewer.workspaceImageAbsolutePathForCopy("H:\\Codezone\\LiveAgent", "\\\\server\\share\\preview.png"),
+    "\\\\server\\share\\preview.png",
+  );
+  assert.equal(
+    viewer.workspaceImageRelativePathForCopy("H:\\Codezone\\LiveAgent", "assets\\preview.png"),
+    "assets/preview.png",
+  );
+  assert.equal(
+    viewer.workspaceImageRelativePathForCopy(
+      "H:\\Codezone\\LiveAgent",
+      "H:\\Codezone\\LiveAgent\\assets\\preview.png",
+    ),
+    "assets/preview.png",
+  );
+  assert.equal(
+    viewer.workspaceImageRelativePathForCopy("/workspace/liveagent", "/workspace/liveagent/preview.png"),
+    "preview.png",
+  );
+});
+
 test("image viewer retains continuous angles for rotation transitions", () => {
   const rotatedLeft = viewer.clampImageViewerState(
     { scale: 1, rotation: -90, x: 0, y: 0 },
