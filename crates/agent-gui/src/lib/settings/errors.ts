@@ -33,6 +33,9 @@ export function getSettingsErrorMessage(
     if (error.code === "ssh_settings_changed") {
       return translate("app.settingsSshSettingsChanged", locale);
     }
+    if (error.code === "gateway_sync_failed") {
+      return translate("app.gatewaySettingsSyncFailed", locale);
+    }
     return fallback;
   }
 

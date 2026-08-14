@@ -67,3 +67,17 @@ test("SSH settings conflict is a stable code with localized UI copy", () => {
     i18n.t("app.settingsSshSettingsChanged", "zh-CN"),
   );
 });
+
+test("gateway settings sync failures use their dedicated localized copy", () => {
+  const { errors, i18n } = loadStorage(async () => undefined);
+  const error = new errors.SettingsStorageError("gateway_sync_failed");
+
+  assert.equal(
+    errors.getSettingsErrorMessage(error, "unused", "en-US", i18n.t),
+    "Failed to sync WebUI settings.",
+  );
+  assert.equal(
+    errors.getSettingsErrorMessage(error, "unused", "zh-CN", i18n.t),
+    i18n.t("app.gatewaySettingsSyncFailed", "zh-CN"),
+  );
+});

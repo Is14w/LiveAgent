@@ -183,7 +183,12 @@ export function useGatewaySettingsSync(params: {
       }
       settingsRef.current = next;
       setSettingsState(next);
-      queueSettingsSave(prev, next, "同步桌面端设置失败。", false);
+      queueSettingsSave(
+        prev,
+        next,
+        t("app.desktopSettingsSyncFailed", next.locale),
+        false,
+      );
     },
     [queueSettingsSave],
   );
@@ -197,7 +202,7 @@ export function useGatewaySettingsSync(params: {
       const next = redactSettingsForWebStorage(rawNext);
       settingsRef.current = next;
       setSettingsState(next);
-      queueSettingsSave(prev, rawNext, "保存 WebUI 设置失败。", true);
+      queueSettingsSave(prev, rawNext, t("app.webSettingsSaveFailed", next.locale), true);
     },
     [queueSettingsSave],
   );
@@ -234,7 +239,12 @@ export function useGatewaySettingsSync(params: {
       })
       .catch((error) => {
         if (!cancelled) {
-          setSettingsSyncError(asErrorMessage(error, "同步桌面端设置失败"));
+          setSettingsSyncError(
+            asErrorMessage(
+              error,
+              t("app.desktopSettingsSyncFailed", settingsRef.current.locale),
+            ),
+          );
           setSettingsSyncReady(true);
         }
       });

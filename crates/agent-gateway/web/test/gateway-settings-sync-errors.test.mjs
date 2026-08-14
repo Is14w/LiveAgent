@@ -57,3 +57,18 @@ test("WebUI localizes settings conflict errors without hiding unknown responses"
   const client = clientWithSettingsUpdateResponse({ accepted: false, message: "gateway rejected" });
   await assert.rejects(() => client.updateSettings({}), /gateway rejected/);
 });
+
+test("WebUI settings fallbacks are localized", () => {
+  assert.equal(
+    i18n.t("app.desktopSettingsSyncFailed", "en-US"),
+    "Failed to sync desktop settings.",
+  );
+  assert.equal(
+    i18n.t("app.webSettingsSaveFailed", "en-US"), "Failed to save WebUI settings.");
+  assert.notEqual(
+    i18n.t("app.desktopSettingsSyncFailed", "zh-CN"),
+    i18n.t("app.desktopSettingsSyncFailed", "en-US"),
+  );
+  assert.notEqual(
+    i18n.t("app.webSettingsSaveFailed", "zh-CN"), i18n.t("app.webSettingsSaveFailed", "en-US"));
+});
