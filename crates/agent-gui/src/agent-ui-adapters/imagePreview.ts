@@ -50,10 +50,7 @@ export async function prepareUploadedImagePreviewCopy(request: {
   });
 }
 
-export async function copyUploadedImagePreview(request: {
-  workdir: string;
-  absolutePath: string;
-}) {
+export async function copyUploadedImagePreview(request: { workdir: string; absolutePath: string }) {
   await invoke("system_clipboard_write_uploaded_image", {
     workdir: request.workdir,
     absolute_path: request.absolutePath,
