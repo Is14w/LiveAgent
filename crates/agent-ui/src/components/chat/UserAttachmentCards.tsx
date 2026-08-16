@@ -67,6 +67,10 @@ function UserImageAttachmentCard(props: {
   } = props;
   const [previewOpen, setPreviewOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [imageLoadState, setImageLoadState] = useState<{
+    src: string | null;
+    status: "loaded" | "error";
+  } | null>(null);
   const labeledPreview = `${previewLabel}: ${file.fileName}`;
   const FallbackIcon = getUploadedFileTypeIcon(file);
   const previewSlides = useMemo<ImagePreviewSlide[]>(
@@ -77,12 +81,14 @@ function UserImageAttachmentCard(props: {
     [file, imageSrc, workspaceRoot],
   );
   const previewSlide = previewSlides[0];
+  const imageLoadFailed = Boolean(imageSrc && imageLoadState?.src === imageSrc && imageLoadState.status === "error");
+  const canPreview = Boolean(imageSrc && imageLoadState?.src === imageSrc && imageLoadState.status === "loaded");
 
   return (
     <div
       title={file.relativePath}
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-white/60 bg-white/75 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:border-white/[0.12] dark:bg-white/[0.06]",
+        "group relative overflow-hidden rounded-xl border border-white/60 bg-white/75 dark:border-white/[0.12] dark:bg-white/[0.06]",
         compact ? "min-w-0 basis-[calc(33.333%-5.33px)] grow" : "w-full max-w-[280px]",
       )}
     >
@@ -99,26 +105,47 @@ function UserImageAttachmentCard(props: {
       ) : null}
       {imageSrc ? (
         <>
-          <button
-            type="button"
-            className="block w-full cursor-zoom-in overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
-            aria-label={labeledPreview}
-            title={labeledPreview}
-            onClick={() => setPreviewOpen(true)}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              setContextMenu({ x: event.clientX, y: event.clientY });
-            }}
-          >
-            <img
-              src={imageSrc}
-              alt={file.fileName}
+          {imageLoadFailed ? (
+            <div
               className={cn(
-                "w-full bg-black/[0.02] transition-transform hover:scale-[1.01] dark:bg-white/5",
-                compact ? "h-28 object-cover" : "max-h-56 object-contain",
+                "flex w-full items-center justify-center bg-black/[0.02] dark:bg-white/5",
+                compact ? "h-28" : "h-36",
               )}
-            />
-          </button>
+            >
+              <FallbackIcon className="h-5 w-5" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={cn(
+                "block w-full overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
+                canPreview ? "cursor-zoom-in" : "cursor-default",
+              )}
+              aria-label={labeledPreview}
+              title={labeledPreview}
+              disabled={!canPreview}
+              onClick={() => setPreviewOpen(true)}
+              onContextMenu={(event) => {
+                if (!canPreview) return;
+                event.preventDefault();
+                setContextMenu({ x: event.clientX, y: event.clientY });
+              }}
+            >
+              <img
+                src={imageSrc}
+                alt={file.fileName}
+                className={cn(
+                  "block w-full bg-black/[0.02] dark:bg-white/5",
+                  compact ? "h-28 object-cover" : "max-h-56 object-contain",
+                )}
+                onLoad={() => setImageLoadState({ src: imageSrc, status: "loaded" })}
+                onError={() => {
+                  setImageLoadState({ src: imageSrc, status: "error" });
+                  setContextMenu(null);
+                }}
+              />
+            </button>
+          )}
           {previewOpen ? (
             <ImagePreview
               open={previewOpen}

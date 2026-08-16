@@ -380,6 +380,7 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.imageViewer.absolutePath": "Absolute path",
   "chat.imageViewer.relativePath": "Workspace-relative path",
   "chat.imageViewer.fullscreen": "Fullscreen",
+  "chat.imageViewer.exitFullscreen": "Exit fullscreen",
   "chat.imageViewer.fullscreenFailed": "Fullscreen is unavailable",
   "chat.imageViewer.viewer": "Image viewer",
   "chat.imageViewer.unavailable": "Image is unavailable",

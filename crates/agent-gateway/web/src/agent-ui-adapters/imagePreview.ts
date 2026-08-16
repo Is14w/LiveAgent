@@ -1,4 +1,13 @@
 export const supportsSystemImageOpen = false;
+export const supportsDirectUploadedImageCopy = false;
+
+type ImagePreviewSaveData = {
+  dataBase64: string;
+  fileName: string;
+  mimeType: string;
+};
+
+type ImagePreviewSaveRequest = Pick<ImagePreviewSaveData, "fileName" | "mimeType">;
 
 function base64ToBytes(dataBase64: string) {
   const binary = window.atob(dataBase64);
@@ -55,13 +64,11 @@ async function drawImageBlobToCanvas(source: Blob) {
   }
 }
 
-export async function saveImagePreviewData(request: {
-  dataBase64: string;
-  fileName: string;
-  mimeType: string;
-}) {
-  const bytes = base64ToBytes(request.dataBase64);
-  const blob = new Blob([bytes.buffer], { type: request.mimeType });
+function imagePreviewBlob(data: Pick<ImagePreviewSaveData, "dataBase64" | "mimeType">) {
+  return new Blob([base64ToBytes(data.dataBase64).buffer], { type: data.mimeType });
+}
+
+export async function prepareImagePreviewSave(request: ImagePreviewSaveRequest) {
   const windowWithPicker = window as Window & {
     showSaveFilePicker?: (options: {
       suggestedName: string;
@@ -87,25 +94,35 @@ export async function saveImagePreviewData(request: {
             ]
           : undefined,
       });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
+      return async (data: ImagePreviewSaveData) => {
+        const writable = await handle.createWritable();
+        await writable.write(imagePreviewBlob(data));
+        await writable.close();
+      };
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       throw error;
     }
   }
 
-  const blobUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = blobUrl;
-  anchor.download = request.fileName;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
+  return async (data: ImagePreviewSaveData) => {
+    const blobUrl = URL.createObjectURL(imagePreviewBlob(data));
+    const anchor = document.createElement("a");
+    anchor.href = blobUrl;
+    anchor.download = data.fileName;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
+  };
+}
+
+export async function saveImagePreviewData(request: ImagePreviewSaveData) {
+  const writeImage = await prepareImagePreviewSave(request);
+  if (!writeImage) return false;
+  await writeImage(request);
+  return true;
 }
 
 export async function copyImagePreviewData(request: { dataBase64: string; mimeType: string }) {
@@ -123,6 +140,20 @@ export async function copyImagePreviewData(request: { dataBase64: string; mimeTy
     }, "image/png");
   });
   await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+}
+
+export async function prepareUploadedImagePreviewCopy(_request: {
+  workdir: string;
+  absolutePath: string;
+}) {
+  // WebUI never receives a trusted local path, so it has nothing to predecode.
+}
+
+export async function copyUploadedImagePreview(_request: {
+  workdir: string;
+  absolutePath: string;
+}) {
+  throw new Error("Direct image attachment copying is unavailable in WebUI");
 }
 
 export async function openUploadedImageInSystemViewer(_request: {

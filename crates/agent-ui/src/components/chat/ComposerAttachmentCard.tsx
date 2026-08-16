@@ -1,4 +1,5 @@
 import { X } from "@liveagent/ui/components/IconSet";
+import { cn } from "@liveagent/ui/lib/shared/utils";
 import { type ReactNode, useMemo, useState } from "react";
 import type { PendingUploadedFile } from "../../lib/chat/uploadedFiles";
 import {
@@ -37,6 +38,10 @@ export function ComposerAttachmentCard(props: {
   } = props;
   const [previewOpen, setPreviewOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [imageLoadState, setImageLoadState] = useState<{
+    src: string | null;
+    status: "loaded" | "error";
+  } | null>(null);
   const previewSlides = useMemo<ImagePreviewSlide[]>(
     () => {
       if (!imageSrc) return [];
@@ -65,6 +70,8 @@ export function ComposerAttachmentCard(props: {
     [file, fileName, imageSrc, workspaceRoot],
   );
   const previewSlide = previewSlides[0];
+  const imageLoadFailed = Boolean(imageSrc && imageLoadState?.src === imageSrc && imageLoadState.status === "error");
+  const canPreview = Boolean(imageSrc && imageLoadState?.src === imageSrc && imageLoadState.status === "loaded");
 
   // 图片附件：纯缩略图方块，点击放大预览，文件名放悬浮提示，角标删除。
   if (imageSrc || isImageLoading) {
@@ -73,20 +80,37 @@ export function ComposerAttachmentCard(props: {
         title={fileName}
         className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-black/[0.075] bg-black/[0.035] transition-[border-color] hover:border-black/[0.16] dark:border-white/[0.11] dark:bg-white/[0.065] dark:hover:border-white/[0.22]"
       >
-        {imageSrc ? (
+        {imageSrc && !imageLoadFailed ? (
           <button
             type="button"
+            disabled={!canPreview}
             onClick={() => setPreviewOpen(true)}
-            className="block h-full w-full cursor-zoom-in outline-hidden focus-visible:ring-2 focus-visible:ring-ring/60"
+            className={cn(
+              "block h-full w-full outline-hidden focus-visible:ring-2 focus-visible:ring-ring/60",
+              canPreview ? "cursor-zoom-in" : "cursor-default",
+            )}
             aria-label={previewLabel ? `${previewLabel}: ${fileName}` : fileName}
             title={previewLabel}
             onContextMenu={(event) => {
+              if (!canPreview) return;
               event.preventDefault();
               setContextMenu({ x: event.clientX, y: event.clientY });
             }}
           >
-            <img src={imageSrc} alt="" draggable={false} className="h-full w-full object-cover" />
+            <img
+              src={imageSrc}
+              alt=""
+              draggable={false}
+              className="block h-full w-full object-cover"
+              onLoad={() => setImageLoadState({ src: imageSrc, status: "loaded" })}
+              onError={() => {
+                setImageLoadState({ src: imageSrc, status: "error" });
+                setContextMenu(null);
+              }}
+            />
           </button>
+        ) : imageLoadFailed ? (
+          <span className="flex h-full w-full items-center justify-center text-muted-foreground">{fallbackIcon}</span>
         ) : (
           <span className="block h-full w-full animate-pulse bg-black/[0.055] dark:bg-white/[0.09]" />
         )}

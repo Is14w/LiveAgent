@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
@@ -10,7 +12,7 @@ function loadAdapter() {
       "@tauri-apps/api/core": {
         async invoke(command, payload) {
           calls.push({ command, payload });
-          return true;
+          return command === "system_prepare_preview_file_save" ? "save-token" : true;
         },
       },
     },
@@ -18,16 +20,36 @@ function loadAdapter() {
   return { adapter: loader.loadModule("@liveagent/adapters/imagePreview"), calls };
 }
 
-test("desktop image preview adapter sends exact save, copy, and system-open Tauri payloads", async () => {
+test("desktop image preview adapter selects a save target before sending image data", async () => {
   const { adapter, calls } = loadAdapter();
 
   assert.equal(adapter.supportsSystemImageOpen, true);
-  await adapter.saveImagePreviewData({
+  assert.equal(adapter.supportsDirectUploadedImageCopy, true);
+  const writeImage = await adapter.prepareImagePreviewSave({
+    fileName: "chart.png",
+    mimeType: "image/png",
+  });
+  assert.equal(typeof writeImage, "function");
+  assert.deepEqual(calls, [
+    {
+      command: "system_prepare_preview_file_save",
+      payload: { file_name: "chart.png" },
+    },
+  ]);
+  await writeImage({
     dataBase64: "aGVsbG8=",
     fileName: "chart.png",
     mimeType: "image/png",
   });
   await adapter.copyImagePreviewData({ dataBase64: "aGVsbG8=", mimeType: "image/png" });
+  await adapter.prepareUploadedImagePreviewCopy({
+    workdir: "C:/work",
+    absolutePath: "C:/work/assets/chart.png",
+  });
+  await adapter.copyUploadedImagePreview({
+    workdir: "C:/work",
+    absolutePath: "C:/work/assets/chart.png",
+  });
   await adapter.openUploadedImageInSystemViewer({
     workdir: "C:/work",
     absolutePath: "C:/work/assets/chart.png",
@@ -35,16 +57,36 @@ test("desktop image preview adapter sends exact save, copy, and system-open Taur
 
   assert.deepEqual(calls, [
     {
-      command: "system_save_preview_file",
+      command: "system_prepare_preview_file_save",
       payload: {
-        data_base64: "aGVsbG8=",
         file_name: "chart.png",
+      },
+    },
+    {
+      command: "system_write_preview_file",
+      payload: {
+        save_token: "save-token",
+        data_base64: "aGVsbG8=",
         mime_type: "image/png",
       },
     },
     {
       command: "system_clipboard_write_image",
       payload: { data_base64: "aGVsbG8=", mime_type: "image/png" },
+    },
+    {
+      command: "system_prepare_uploaded_image_clipboard",
+      payload: {
+        workdir: "C:/work",
+        absolute_path: "C:/work/assets/chart.png",
+      },
+    },
+    {
+      command: "system_clipboard_write_uploaded_image",
+      payload: {
+        workdir: "C:/work",
+        absolute_path: "C:/work/assets/chart.png",
+      },
     },
     {
       command: "system_open_uploaded_image",
@@ -54,4 +96,36 @@ test("desktop image preview adapter sends exact save, copy, and system-open Taur
       },
     },
   ]);
+});
+
+test("desktop image preview actions are implemented and registered with Tauri", () => {
+  const systemSource = fs.readFileSync(
+    fileURLToPath(new URL("../../src-tauri/src/commands/app/system.rs", import.meta.url)),
+    "utf8",
+  );
+  const libSource = fs.readFileSync(
+    fileURLToPath(new URL("../../src-tauri/src/lib.rs", import.meta.url)),
+    "utf8",
+  );
+
+  assert.match(systemSource, /pub async fn system_save_preview_file\(/);
+  assert.match(systemSource, /pub async fn system_prepare_preview_file_save\(/);
+  assert.match(systemSource, /pub async fn system_write_preview_file\(/);
+  assert.match(systemSource, /pub async fn system_clipboard_write_image\(/);
+  assert.match(systemSource, /pub async fn system_prepare_uploaded_image_clipboard\(/);
+  assert.match(systemSource, /pub async fn system_clipboard_write_uploaded_image\(/);
+  assert.match(
+    systemSource,
+    /fn system_prepare_uploaded_image_clipboard_sync\([\s\S]*resolve_uploaded_image_target\(&workdir, &absolute_path\)/,
+  );
+  assert.match(
+    systemSource,
+    /fn system_clipboard_write_uploaded_image_sync\([\s\S]*prepare_uploaded_image_preview_clipboard_target\(&target\)/,
+  );
+  assert.match(libSource, /commands::system::system_save_preview_file,/);
+  assert.match(libSource, /commands::system::system_prepare_preview_file_save,/);
+  assert.match(libSource, /commands::system::system_write_preview_file,/);
+  assert.match(libSource, /commands::system::system_clipboard_write_image,/);
+  assert.match(libSource, /commands::system::system_prepare_uploaded_image_clipboard,/);
+  assert.match(libSource, /commands::system::system_clipboard_write_uploaded_image,/);
 });

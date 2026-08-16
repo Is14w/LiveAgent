@@ -403,7 +403,7 @@ export function ToolResultImagePreview(props: {
           loading="lazy"
           decoding="async"
           className={cn(
-            "max-h-[32rem] w-full rounded-[8px] object-contain transition-opacity duration-200",
+            "block max-h-[32rem] w-full rounded-[8px] object-contain transition-opacity duration-200",
             imageStatus === "loaded"
               ? "opacity-100"
               : "pointer-events-none absolute inset-0 h-full max-h-none opacity-0",

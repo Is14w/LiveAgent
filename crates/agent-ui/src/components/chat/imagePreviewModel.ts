@@ -109,7 +109,13 @@ function decodeDataUrl(src: string): ResolvedImagePreviewData | null {
     };
   }
 
-  const decoded = decodeURIComponent(payload.replace(/\+/g, "%20"));
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(payload.replace(/\+/g, "%20"));
+  } catch {
+    // Invalid percent escapes are an image-load failure, not a render failure.
+    return null;
+  }
   const dataBase64 = bytesToBase64(new TextEncoder().encode(decoded));
   return {
     dataBase64,
@@ -181,9 +187,13 @@ export function getImagePreviewDisplayName(slide: ImagePreviewSlide) {
 export function isVerifiedImagePreviewAttachment(
   attachment: ImagePreviewAttachment | undefined,
 ): attachment is ImagePreviewAttachment {
+  if (!attachment) return false;
   return Boolean(
-    attachment?.workdir.trim() &&
+    typeof attachment.workdir === "string" &&
+      attachment.workdir.trim() &&
+      typeof attachment.absolutePath === "string" &&
       attachment.absolutePath.trim() &&
+      typeof attachment.relativePath === "string" &&
       attachment.relativePath.trim(),
   );
 }
@@ -197,7 +207,8 @@ export function getImagePreviewCapabilities(
   return {
     canSave: hasSource,
     canCopyImage: hasSource,
-    canCopyPaths: hasAttachment,
+    // Only the desktop host can revalidate and act on local attachment paths.
+    canCopyPaths: hasAttachment && supportsSystemOpen,
     canOpenSystem: hasAttachment && supportsSystemOpen,
   };
 }

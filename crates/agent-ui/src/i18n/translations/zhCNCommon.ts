@@ -350,6 +350,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.imageViewer.absolutePath": "绝对路径",
   "chat.imageViewer.relativePath": "工作区相对路径",
   "chat.imageViewer.fullscreen": "全屏",
+  "chat.imageViewer.exitFullscreen": "退出全屏",
   "chat.imageViewer.fullscreenFailed": "当前无法全屏显示",
   "chat.imageViewer.viewer": "图片查看器",
   "chat.imageViewer.unavailable": "图片无法显示",

@@ -33,10 +33,15 @@ function base64Atob(value) {
 
 test("Gateway image save uses the file picker and silently accepts a picker cancellation", async () => {
   const writes = [];
+  const events = [];
   const restore = installGlobals({
     window: {
-      atob: base64Atob,
+      atob(value) {
+        events.push("decode");
+        return base64Atob(value);
+      },
       showSaveFilePicker: async (options) => {
+        events.push("picker");
         assert.deepEqual(options, {
           suggestedName: "chart.png",
           types: [
@@ -60,11 +65,18 @@ test("Gateway image save uses the file picker and silently accepts a picker canc
     },
   });
   try {
-    await adapter.saveImagePreviewData({
+    const writeImage = await adapter.prepareImagePreviewSave({
+      fileName: "chart.png",
+      mimeType: "image/png",
+    });
+    assert.equal(typeof writeImage, "function");
+    assert.deepEqual(events, ["picker"]);
+    await writeImage({
       dataBase64: "aGVsbG8=",
       fileName: "chart.png",
       mimeType: "image/png",
     });
+    assert.deepEqual(events, ["picker", "decode"]);
     assert.equal(writes[0] instanceof Blob, true);
     assert.equal(writes[0].type, "image/png");
     assert.equal(writes[0].size, 5);
@@ -218,7 +230,18 @@ test("Gateway image copy writes a PNG ClipboardItem and reports unsupported brow
       adapter.openUploadedImageInSystemViewer({ workdir: "/workspace", absolutePath: "/workspace/chart.png" }),
       /unavailable in WebUI/,
     );
+    await assert.rejects(
+      adapter.copyUploadedImagePreview({ workdir: "/workspace", absolutePath: "/workspace/chart.png" }),
+      /unavailable in WebUI/,
+    );
+    await assert.doesNotReject(
+      adapter.prepareUploadedImagePreviewCopy({
+        workdir: "/workspace",
+        absolutePath: "/workspace/chart.png",
+      }),
+    );
     assert.equal(adapter.supportsSystemImageOpen, false);
+    assert.equal(adapter.supportsDirectUploadedImageCopy, false);
   } finally {
     restoreUnsupported();
   }

@@ -1,24 +1,12 @@
 import {
   copyImagePreviewData,
+  copyUploadedImagePreview,
   openUploadedImageInSystemViewer,
-  saveImagePreviewData,
+  prepareImagePreviewSave,
+  prepareUploadedImagePreviewCopy,
+  supportsDirectUploadedImageCopy,
   supportsSystemImageOpen,
 } from "@liveagent/adapters/imagePreview";
-import {
-  ChevronRight,
-  Copy,
-  Download,
-  ExternalLink,
-  Info,
-  Maximize2,
-  Minus,
-  Plus,
-  RefreshCw,
-  RotateCwSquare,
-  X,
-} from "@liveagent/ui/components/IconSet";
-import { useLocale } from "@liveagent/ui/i18n";
-import { cn } from "@liveagent/ui/lib/shared/utils";
 import {
   clampImagePreviewIndex,
   clampImageViewerPan,
@@ -31,20 +19,37 @@ import {
   getImagePreviewMimeType,
   IMAGE_VIEWER_MAX_SCALE,
   IMAGE_VIEWER_MIN_SCALE,
+  type ImagePreviewSlide,
+  type ImageViewerSize,
+  type ImageViewerState,
   imageViewerScaleAfterStep,
   imageViewerScaleAfterWheelDelta,
   isVerifiedImagePreviewAttachment,
   normalizeImagePreviewIndex,
   resetImageViewerState,
   resolveImagePreviewData,
-  type ImagePreviewSlide,
-  type ImageViewerSize,
-  type ImageViewerState,
   zoomImageViewerAtPoint,
 } from "@liveagent/ui/components/chat/imagePreviewModel";
 import {
-  type ReactNode,
+  ChevronRight,
+  Copy,
+  Download,
+  ExternalLink,
+  Info,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Minus,
+  Plus,
+  RefreshCw,
+  RotateCwSquare,
+  X,
+} from "@liveagent/ui/components/IconSet";
+import { useLocale } from "@liveagent/ui/i18n";
+import { cn } from "@liveagent/ui/lib/shared/utils";
+import {
   memo,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -65,6 +70,7 @@ type ImagePreviewProps = {
 };
 
 type MenuPosition = { x: number; y: number };
+type ImagePreviewDataResolver = (slide: ImagePreviewSlide) => ReturnType<typeof resolveImagePreviewData>;
 
 function toMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -111,17 +117,36 @@ async function copyTextToClipboard(value: string) {
   if (!copied) throw new Error("Text clipboard is unavailable");
 }
 
-async function saveImagePreviewSlide(slide: ImagePreviewSlide) {
-  const data = await resolveImagePreviewData(slide);
-  await saveImagePreviewData({
+async function saveImagePreviewSlide(
+  slide: ImagePreviewSlide,
+  resolveData: ImagePreviewDataResolver = resolveImagePreviewData,
+) {
+  const writeImage = await prepareImagePreviewSave({
+    fileName: getImagePreviewFileName(slide),
+    mimeType: getImagePreviewMimeType(slide),
+  });
+  if (!writeImage) return;
+
+  const data = await resolveData(slide);
+  await writeImage({
     dataBase64: data.dataBase64,
     fileName: getImagePreviewFileName(slide),
     mimeType: data.mimeType,
   });
 }
 
-async function copyImagePreviewSlide(slide: ImagePreviewSlide) {
-  const data = await resolveImagePreviewData(slide);
+async function copyImagePreviewSlide(
+  slide: ImagePreviewSlide,
+  resolveData: ImagePreviewDataResolver = resolveImagePreviewData,
+) {
+  if (supportsDirectUploadedImageCopy && isVerifiedImagePreviewAttachment(slide.attachment)) {
+    await copyUploadedImagePreview({
+      workdir: slide.attachment.workdir,
+      absolutePath: slide.attachment.absolutePath,
+    });
+    return;
+  }
+  const data = await resolveData(slide);
   await copyImagePreviewData({ dataBase64: data.dataBase64, mimeType: data.mimeType });
 }
 
@@ -241,8 +266,10 @@ export function ImagePreviewContextMenu(props: {
 
   const run = useCallback(
     (action: () => Promise<void>, fallback: string) => {
+      // Close the portal before starting work so slow image decoding or host I/O
+      // cannot leave the context menu covering the image.
+      onClose();
       void action()
-        .then(onClose)
         .catch((actionError) => {
           const message = toMessage(actionError, fallback);
           setError(message);
@@ -353,8 +380,14 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
   const [showInfo, setShowInfo] = useState(false);
   const [contextMenu, setContextMenu] = useState<MenuPosition | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const resolvedDataRef = useRef(
+    new WeakMap<ImagePreviewSlide, ReturnType<typeof resolveImagePreviewData>>(),
+  );
   const wasOpenRef = useRef(open);
   const requestedIndexRef = useRef(requestedIndex);
   const dragRef = useRef<{
@@ -387,6 +420,21 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
   const slide = slides[clampedIndex];
   const activeSlideKey = slide ? `${slide.src}\0${slide.dataBase64 ?? ""}` : null;
   const imageSource = slide ? getImagePreviewDisplaySource(slide) : "";
+  const hasInlineImageData = Boolean(slide?.dataBase64?.trim() || imageSource.startsWith("data:"));
+
+  const resolveCachedImageData = useCallback((candidate: ImagePreviewSlide) => {
+    const cached = resolvedDataRef.current.get(candidate);
+    if (cached) return cached;
+
+    const resolving = resolveImagePreviewData(candidate);
+    resolvedDataRef.current.set(candidate, resolving);
+    void resolving.catch(() => {
+      if (resolvedDataRef.current.get(candidate) === resolving) {
+        resolvedDataRef.current.delete(candidate);
+      }
+    });
+    return resolving;
+  }, []);
 
   useEffect(() => {
     if (!open || activeSlideKey === null) return;
@@ -401,6 +449,19 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
     if (!open) return;
     const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setIsFullscreen(false);
+      return;
+    }
+    const updateFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === dialogRef.current);
+    };
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", updateFullscreenState);
   }, [open]);
 
   useEffect(() => {
@@ -425,6 +486,8 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
   );
   const viewerOptions = useMemo(() => ({ imageSize, viewportSize }), [imageSize, viewportSize]);
   const capabilities = slide ? getImagePreviewCapabilities(slide, supportsSystemImageOpen) : null;
+  const verifiedAttachment =
+    slide && isVerifiedImagePreviewAttachment(slide.attachment) ? slide.attachment : null;
   const canPan =
     clampImageViewerPan(
       { x: 1_000_000, y: 1_000_000 },
@@ -480,35 +543,61 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
   );
 
   const handleFullscreen = useCallback(async () => {
-    const viewport = viewportRef.current;
-    if (!viewport?.requestFullscreen) {
+    const dialog = dialogRef.current;
+    const dialogIsFullscreen = document.fullscreenElement === dialog;
+    if (dialogIsFullscreen) {
+      if (!document.exitFullscreen) {
+        setActionError(t("chat.imageViewer.fullscreenFailed"));
+        return;
+      }
+      try {
+        await document.exitFullscreen();
+      } catch (error) {
+        setActionError(toMessage(error, t("chat.imageViewer.fullscreenFailed")));
+      }
+      return;
+    }
+    if (!dialog?.requestFullscreen) {
       setActionError(t("chat.imageViewer.fullscreenFailed"));
       return;
     }
     try {
-      await viewport.requestFullscreen();
+      await dialog.requestFullscreen();
     } catch (error) {
       setActionError(toMessage(error, t("chat.imageViewer.fullscreenFailed")));
     }
   }, [t]);
 
+  const closeViewer = useCallback(() => {
+    if (document.fullscreenElement === dialogRef.current && document.exitFullscreen) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+    onClose();
+  }, [onClose]);
+
   const saveImage = useCallback(async () => {
-    if (!slide) return;
+    if (!slide || isSaving) return;
+    setIsSaving(true);
     try {
-      await saveImagePreviewSlide(slide);
+      await saveImagePreviewSlide(slide, resolveCachedImageData);
     } catch (error) {
       setActionError(toMessage(error, t("chat.imageViewer.saveFailed")));
+    } finally {
+      setIsSaving(false);
     }
-  }, [slide, t]);
+  }, [isSaving, resolveCachedImageData, slide, t]);
 
   const copyImage = useCallback(async () => {
-    if (!slide) return;
+    if (!slide || isCopying) return;
+    setIsCopying(true);
     try {
-      await copyImagePreviewSlide(slide);
+      await copyImagePreviewSlide(slide, resolveCachedImageData);
     } catch (error) {
       setActionError(toMessage(error, t("chat.imageViewer.copyFailed")));
+    } finally {
+      setIsCopying(false);
     }
-  }, [slide, t]);
+  }, [isCopying, resolveCachedImageData, slide, t]);
 
   const openSystemViewer = useCallback(async () => {
     if (!slide) return;
@@ -530,39 +619,48 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
 
   return createPortal(
     <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("chat.imageViewer.viewer")}
-      tabIndex={-1}
-      className="fixed inset-0 z-[100] flex min-h-0 min-w-0 flex-col bg-black/90 text-white outline-none backdrop-blur-sm"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
+      className="fixed inset-0 z-[100] flex min-h-0 min-w-0 items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-6"
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("chat.imageViewer.viewer")}
+        tabIndex={-1}
+        className="chat-image-preview-dialog flex h-[min(78vh,760px)] w-[min(82vw,1120px)] min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-white/15 bg-black/90 text-white shadow-2xl outline-none"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
           if (contextMenu) {
             setContextMenu(null);
           } else if (showInfo) {
             setShowInfo(false);
+          } else if (isFullscreen) {
+            void handleFullscreen();
           } else {
-            onClose();
+            closeViewer();
+            }
+            return;
           }
-          return;
-        }
-        if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "c") {
-          event.preventDefault();
-          event.stopPropagation();
-          void copyImage();
-        }
-        if (event.key === "0") {
-          event.preventDefault();
-          event.stopPropagation();
-          setViewerState(resetImageViewerState());
-        }
-      }}
-    >
-      <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-white/15 bg-black/30 px-2">
-        <div className="flex min-w-0 items-center gap-1">
+          if (
+            (event.ctrlKey || event.metaKey) &&
+            !event.altKey &&
+            event.key.toLowerCase() === "c"
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            void copyImage();
+          }
+          if (event.key === "0") {
+            event.preventDefault();
+            event.stopPropagation();
+            setViewerState(resetImageViewerState());
+          }
+        }}
+      >
+        <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-white/15 bg-black/30 px-2">
+          <div className="flex min-w-0 items-center gap-1">
           {imageCount > 1 ? (
             <>
               <ImagePreviewToolButton
@@ -615,16 +713,24 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
           >
             <RefreshCw className="h-4 w-4" />
           </ImagePreviewToolButton>
-          <ImagePreviewToolButton label={t("chat.imageViewer.save")} onClick={() => void saveImage()}>
-            <Download className="h-4 w-4" />
+          <ImagePreviewToolButton
+            label={t("chat.imageViewer.save")}
+            disabled={isSaving}
+            onClick={() => void saveImage()}
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </ImagePreviewToolButton>
           {capabilities?.canOpenSystem ? (
             <ImagePreviewToolButton label={t("chat.imageViewer.openSystem")} onClick={() => void openSystemViewer()}>
               <ExternalLink className="h-4 w-4" />
             </ImagePreviewToolButton>
           ) : null}
-          <ImagePreviewToolButton label={t("chat.imageViewer.copy")} onClick={() => void copyImage()}>
-            <Copy className="h-4 w-4" />
+          <ImagePreviewToolButton
+            label={t("chat.imageViewer.copy")}
+            disabled={isCopying}
+            onClick={() => void copyImage()}
+          >
+            {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
           </ImagePreviewToolButton>
           <ImagePreviewToolButton
             label={t("chat.imageViewer.info")}
@@ -633,13 +739,16 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
           >
             <Info className="h-4 w-4" />
           </ImagePreviewToolButton>
-          <ImagePreviewToolButton label={t("chat.imageViewer.fullscreen")} onClick={() => void handleFullscreen()}>
-            <Maximize2 className="h-4 w-4" />
+          <ImagePreviewToolButton
+            label={t(isFullscreen ? "chat.imageViewer.exitFullscreen" : "chat.imageViewer.fullscreen")}
+            onClick={() => void handleFullscreen()}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </ImagePreviewToolButton>
-          <ImagePreviewToolButton label={closeLabel} onClick={onClose}>
+          <ImagePreviewToolButton label={closeLabel} onClick={closeViewer}>
             <X className="h-4 w-4" />
           </ImagePreviewToolButton>
-        </div>
+          </div>
       </div>
       <div
         ref={viewportRef}
@@ -722,6 +831,13 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
                     width: event.currentTarget.naturalWidth,
                     height: event.currentTarget.naturalHeight,
                   });
+                  if (supportsDirectUploadedImageCopy && isVerifiedImagePreviewAttachment(slide.attachment)) {
+                    void prepareUploadedImagePreviewCopy({
+                      workdir: slide.attachment.workdir,
+                      absolutePath: slide.attachment.absolutePath,
+                    }).catch(() => undefined);
+                  }
+                  if (hasInlineImageData) void resolveCachedImageData(slide);
                 }}
                 onError={() => setActionError(t("chat.imageViewer.unavailable"))}
               />
@@ -764,15 +880,15 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
               <dd className="truncate text-right text-white" title={getImagePreviewMimeType(slide)}>
                 {getImagePreviewMimeType(slide)}
               </dd>
-              {isVerifiedImagePreviewAttachment(slide.attachment) ? (
+              {capabilities?.canCopyPaths && verifiedAttachment ? (
                 <>
                   <dt>{t("chat.imageViewer.absolutePath")}</dt>
-                  <dd className="truncate text-right text-white" title={slide.attachment.absolutePath}>
-                    {slide.attachment.absolutePath}
+                  <dd className="truncate text-right text-white" title={verifiedAttachment.absolutePath}>
+                    {verifiedAttachment.absolutePath}
                   </dd>
                   <dt>{t("chat.imageViewer.relativePath")}</dt>
-                  <dd className="truncate text-right text-white" title={slide.attachment.relativePath}>
-                    {slide.attachment.relativePath}
+                  <dd className="truncate text-right text-white" title={verifiedAttachment.relativePath}>
+                    {verifiedAttachment.relativePath}
                   </dd>
                 </>
               ) : null}
@@ -848,11 +964,12 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
                 setContextMenu(null);
               }}
             >
-              <Maximize2 className="h-3.5 w-3.5" />
-              {t("chat.imageViewer.fullscreen")}
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              {t(isFullscreen ? "chat.imageViewer.exitFullscreen" : "chat.imageViewer.fullscreen")}
             </ImagePreviewMenuItem>
           </ImagePreviewContextMenu>
         ) : null}
+        </div>
       </div>
     </div>,
     document.body,
