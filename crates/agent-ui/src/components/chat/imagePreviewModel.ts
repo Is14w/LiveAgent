@@ -111,7 +111,7 @@ function decodeDataUrl(src: string): ResolvedImagePreviewData | null {
 
   let decoded: string;
   try {
-    decoded = decodeURIComponent(payload.replace(/\+/g, "%20"));
+    decoded = decodeURIComponent(payload);
   } catch {
     // Invalid percent escapes are an image-load failure, not a render failure.
     return null;

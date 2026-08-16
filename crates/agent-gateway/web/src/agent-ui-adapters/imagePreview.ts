@@ -8,6 +8,8 @@ type ImagePreviewSaveData = {
 };
 
 type ImagePreviewSaveRequest = Pick<ImagePreviewSaveData, "fileName" | "mimeType">;
+type ImagePreviewCopyData = Pick<ImagePreviewSaveData, "dataBase64" | "mimeType">;
+type ImagePreviewCopyRequest = ImagePreviewCopyData | PromiseLike<ImagePreviewCopyData>;
 
 function base64ToBytes(dataBase64: string) {
   const binary = window.atob(dataBase64);
@@ -125,21 +127,23 @@ export async function saveImagePreviewData(request: ImagePreviewSaveData) {
   return true;
 }
 
-export async function copyImagePreviewData(request: { dataBase64: string; mimeType: string }) {
+export function copyImagePreviewData(request: ImagePreviewCopyRequest) {
   if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    throw new Error("Image clipboard is unavailable");
+    return Promise.reject(new Error("Image clipboard is unavailable"));
   }
-  const source = new Blob([base64ToBytes(request.dataBase64).buffer], {
-    type: request.mimeType,
+  const png = Promise.resolve(request).then(async (data) => {
+    const source = new Blob([base64ToBytes(data.dataBase64).buffer], {
+      type: data.mimeType,
+    });
+    const canvas = await drawImageBlobToCanvas(source);
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Could not encode image for clipboard"));
+      }, "image/png");
+    });
   });
-  const canvas = await drawImageBlobToCanvas(source);
-  const png = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("Could not encode image for clipboard"));
-    }, "image/png");
-  });
-  await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+  return navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
 }
 
 export async function prepareUploadedImagePreviewCopy(_request: {

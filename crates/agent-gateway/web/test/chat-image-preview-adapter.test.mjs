@@ -164,12 +164,14 @@ test("Gateway image save falls back to a browser download anchor", async () => {
 });
 
 test("Gateway image copy writes a PNG ClipboardItem and reports unsupported browser APIs", async () => {
-  const writes = [];
+  const events = [];
+  let clipboardItems;
+  let resolveImageData;
   const imageBitmap = {
     width: 12,
     height: 8,
     close() {
-      writes.push("bitmap-closed");
+      events.push("bitmap-closed");
     },
   };
   class TestClipboardItem {
@@ -182,12 +184,18 @@ test("Gateway image copy writes a PNG ClipboardItem and reports unsupported brow
     navigator: {
       clipboard: {
         async write(items) {
-          writes.push(items);
+          events.push("write");
+          clipboardItems = items;
+          await items[0].items["image/png"];
+          events.push("written");
         },
       },
     },
     ClipboardItem: TestClipboardItem,
-    createImageBitmap: async () => imageBitmap,
+    createImageBitmap: async () => {
+      events.push("decode");
+      return imageBitmap;
+    },
     document: {
       createElement(tagName) {
         assert.equal(tagName, "canvas");
@@ -195,9 +203,10 @@ test("Gateway image copy writes a PNG ClipboardItem and reports unsupported brow
           width: 0,
           height: 0,
           getContext() {
-            return { drawImage: (...args) => writes.push(args) };
+            return { drawImage: () => events.push("draw") };
           },
           toBlob(callback, type) {
+            events.push("encode");
             callback(new Blob(["png"], { type }));
           },
         };
@@ -205,14 +214,21 @@ test("Gateway image copy writes a PNG ClipboardItem and reports unsupported brow
     },
   });
   try {
-    await adapter.copyImagePreviewData({ dataBase64: "aGVsbG8=", mimeType: "image/jpeg" });
-    const clipboardWrite = writes.find(
-      (value) => Array.isArray(value) && value[0] instanceof TestClipboardItem,
-    );
-    assert.equal(clipboardWrite.length, 1);
-    assert.equal(clipboardWrite[0] instanceof TestClipboardItem, true);
-    assert.equal(clipboardWrite[0].items["image/png"].type, "image/png");
-    assert.ok(writes.includes("bitmap-closed"));
+    const imageData = new Promise((resolve) => {
+      resolveImageData = resolve;
+    });
+    const copying = adapter.copyImagePreviewData(imageData);
+
+    assert.deepEqual(events, ["write"]);
+    assert.equal(clipboardItems.length, 1);
+    assert.equal(clipboardItems[0] instanceof TestClipboardItem, true);
+    assert.equal(clipboardItems[0].items["image/png"] instanceof Promise, true);
+
+    resolveImageData({ dataBase64: "aGVsbG8=", mimeType: "image/jpeg" });
+    await copying;
+    const png = await clipboardItems[0].items["image/png"];
+    assert.equal(png.type, "image/png");
+    assert.deepEqual(events, ["write", "decode", "draw", "bitmap-closed", "encode", "written"]);
   } finally {
     restore();
   }

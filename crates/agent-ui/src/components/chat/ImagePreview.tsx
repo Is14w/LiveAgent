@@ -30,6 +30,7 @@ import {
   resolveImagePreviewData,
   zoomImageViewerAtPoint,
 } from "@liveagent/ui/components/chat/imagePreviewModel";
+import { NotifyToast } from "@liveagent/ui/components/chat/NotifyToast";
 import {
   ChevronRight,
   Copy,
@@ -139,15 +140,22 @@ async function copyImagePreviewSlide(
   slide: ImagePreviewSlide,
   resolveData: ImagePreviewDataResolver = resolveImagePreviewData,
 ) {
-  if (supportsDirectUploadedImageCopy && isVerifiedImagePreviewAttachment(slide.attachment)) {
+  if (
+    supportsDirectUploadedImageCopy &&
+    getImagePreviewMimeType(slide) !== "image/svg+xml" &&
+    isVerifiedImagePreviewAttachment(slide.attachment)
+  ) {
     await copyUploadedImagePreview({
       workdir: slide.attachment.workdir,
       absolutePath: slide.attachment.absolutePath,
     });
     return;
   }
-  const data = await resolveData(slide);
-  await copyImagePreviewData({ dataBase64: data.dataBase64, mimeType: data.mimeType });
+  const data = resolveData(slide).then((resolved) => ({
+    dataBase64: resolved.dataBase64,
+    mimeType: resolved.mimeType,
+  }));
+  await copyImagePreviewData(data);
 }
 
 async function openImagePreviewSlideInSystemViewer(slide: ImagePreviewSlide) {
@@ -204,19 +212,51 @@ export function ImagePreviewMenuItem(props: {
   );
 }
 
+export function ImagePreviewActionFeedback(props: {
+  message: string | null;
+  onDismiss: () => void;
+}) {
+  if (!props.message || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-x-0 top-0 z-[120] h-0">
+      <NotifyToast
+        items={[{ id: "image-preview-action-error", type: "error", message: props.message }]}
+        onDismiss={props.onDismiss}
+      />
+    </div>,
+    document.body,
+  );
+}
+
+export function runImagePreviewContextMenuAction(params: {
+  action: () => Promise<void>;
+  fallback: string;
+  onClose: () => void;
+  onActionError: (message: string) => void;
+}) {
+  params.onClose();
+  try {
+    return params.action().catch((actionError) => {
+      params.onActionError(toMessage(actionError, params.fallback));
+    });
+  } catch (actionError) {
+    params.onActionError(toMessage(actionError, params.fallback));
+    return Promise.resolve();
+  }
+}
+
 export function ImagePreviewContextMenu(props: {
   slide: ImagePreviewSlide;
   position: MenuPosition;
   onClose: () => void;
   onOpen?: () => void;
-  onActionError?: (message: string) => void;
+  onActionError: (message: string) => void;
   children?: ReactNode;
 }) {
   const { slide, position, onClose, onOpen, onActionError, children } = props;
   const { t } = useLocale();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const capabilities = getImagePreviewCapabilities(slide, supportsSystemImageOpen);
 
   const updateMenuPosition = useCallback(() => {
@@ -266,15 +306,7 @@ export function ImagePreviewContextMenu(props: {
 
   const run = useCallback(
     (action: () => Promise<void>, fallback: string) => {
-      // Close the portal before starting work so slow image decoding or host I/O
-      // cannot leave the context menu covering the image.
-      onClose();
-      void action()
-        .catch((actionError) => {
-          const message = toMessage(actionError, fallback);
-          setError(message);
-          onActionError?.(message);
-        });
+      void runImagePreviewContextMenuAction({ action, fallback, onClose, onActionError });
     },
     [onActionError, onClose],
   );
@@ -360,7 +392,6 @@ export function ImagePreviewContextMenu(props: {
           {t("chat.imageViewer.openSystem")}
         </ImagePreviewMenuItem>
       ) : null}
-      {error ? <div role="alert" className="max-w-60 px-2.5 py-1.5 text-red-600 dark:text-red-300">{error}</div> : null}
     </div>,
     document.body,
   );
@@ -831,7 +862,11 @@ export const ImagePreview = memo(function ImagePreview(props: ImagePreviewProps)
                     width: event.currentTarget.naturalWidth,
                     height: event.currentTarget.naturalHeight,
                   });
-                  if (supportsDirectUploadedImageCopy && isVerifiedImagePreviewAttachment(slide.attachment)) {
+                  if (
+                    supportsDirectUploadedImageCopy &&
+                    getImagePreviewMimeType(slide) !== "image/svg+xml" &&
+                    isVerifiedImagePreviewAttachment(slide.attachment)
+                  ) {
                     void prepareUploadedImagePreviewCopy({
                       workdir: slide.attachment.workdir,
                       absolutePath: slide.attachment.absolutePath,

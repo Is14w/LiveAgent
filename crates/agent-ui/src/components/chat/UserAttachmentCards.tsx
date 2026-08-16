@@ -10,6 +10,7 @@ import { X } from "../IconSet";
 import { getUploadedFileTypeIcon } from "./fileTypeIcons";
 import {
   ImagePreview,
+  ImagePreviewActionFeedback,
   ImagePreviewContextMenu,
   type ImagePreviewSlide,
 } from "./ImagePreview";
@@ -66,6 +67,7 @@ function UserImageAttachmentCard(props: {
     closePreviewLabel,
   } = props;
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [imageLoadState, setImageLoadState] = useState<{
     src: string | null;
@@ -160,8 +162,13 @@ function UserImageAttachmentCard(props: {
               position={contextMenu}
               onOpen={() => setPreviewOpen(true)}
               onClose={() => setContextMenu(null)}
+              onActionError={setActionError}
             />
           ) : null}
+          <ImagePreviewActionFeedback
+            message={actionError}
+            onDismiss={() => setActionError(null)}
+          />
         </>
       ) : (
         <div

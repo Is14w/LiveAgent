@@ -4,6 +4,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import type { PendingUploadedFile } from "../../lib/chat/uploadedFiles";
 import {
   ImagePreview,
+  ImagePreviewActionFeedback,
   ImagePreviewContextMenu,
   type ImagePreviewSlide,
 } from "./ImagePreview";
@@ -37,6 +38,7 @@ export function ComposerAttachmentCard(props: {
     onRemove,
   } = props;
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [imageLoadState, setImageLoadState] = useState<{
     src: string | null;
@@ -138,8 +140,13 @@ export function ComposerAttachmentCard(props: {
             position={contextMenu}
             onOpen={() => setPreviewOpen(true)}
             onClose={() => setContextMenu(null)}
+            onActionError={setActionError}
           />
         ) : null}
+        <ImagePreviewActionFeedback
+          message={actionError}
+          onDismiss={() => setActionError(null)}
+        />
       </div>
     );
   }

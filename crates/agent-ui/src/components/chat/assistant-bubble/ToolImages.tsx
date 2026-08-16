@@ -1,6 +1,7 @@
 import { deferLargeToolImages } from "@liveagent/adapters/assistantBubble";
 import {
   ImagePreview,
+  ImagePreviewActionFeedback,
   ImagePreviewContextMenu,
   type ImagePreviewSlide,
 } from "@liveagent/ui/components/chat/ImagePreview";
@@ -322,6 +323,7 @@ export function ToolResultImagePreview(props: {
     deferLargeToolImages && estimatedBytes > LARGE_TOOL_IMAGE_INLINE_THRESHOLD_BYTES;
   const [shouldLoad, setShouldLoad] = useState(readOnly ? true : !shouldDeferImage);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [imageStatus, setImageStatus] = useState<ToolImageLoadState>("loading");
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -448,8 +450,13 @@ export function ToolResultImagePreview(props: {
           position={contextMenu}
           onOpen={() => setPreviewOpen(true)}
           onClose={() => setContextMenu(null)}
+          onActionError={setActionError}
         />
       ) : null}
+      <ImagePreviewActionFeedback
+        message={actionError}
+        onDismiss={() => setActionError(null)}
+      />
     </>
   );
 }
@@ -607,6 +614,7 @@ export function NativeDisplayImageBlock(props: {
   const { t } = useLocale();
   const isGallery = payload.entries.length > 1;
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ index: number; x: number; y: number } | null>(
     null,
   );
@@ -667,8 +675,13 @@ export function NativeDisplayImageBlock(props: {
           position={contextMenu}
           onOpen={() => setPreviewIndex(contextMenu.index)}
           onClose={() => setContextMenu(null)}
+          onActionError={setActionError}
         />
       ) : null}
+      <ImagePreviewActionFeedback
+        message={actionError}
+        onDismiss={() => setActionError(null)}
+      />
     </>
   );
 }

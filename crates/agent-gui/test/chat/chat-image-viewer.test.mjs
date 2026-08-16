@@ -7,6 +7,7 @@ import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
 const loader = createTsModuleLoader();
 const viewer = loader.loadModule("@liveagent/ui/components/chat/imagePreviewModel.ts");
+const imagePreview = loader.loadModule("@liveagent/ui/components/chat/ImagePreview.tsx");
 const userAttachments = loader.loadModule("@liveagent/ui/components/chat/UserAttachmentCards.tsx");
 
 function approximately(actual, expected, epsilon = 1e-9) {
@@ -100,6 +101,17 @@ test("viewer index, image data parsing, and MIME inference cover inline and prox
     await viewer.resolveImagePreviewData({ src: "data:image/svg+xml,%3Csvg%3E" }),
     { dataBase64: "PHN2Zz4=", mimeType: "image/svg+xml", sizeBytes: 5 },
   );
+  const textSvg = "<svg><text>1+1 + 你好</text></svg>";
+  assert.deepEqual(
+    await viewer.resolveImagePreviewData({
+      src: "data:image/svg+xml,%3Csvg%3E%3Ctext%3E1+1%20%2B%20%E4%BD%A0%E5%A5%BD%3C%2Ftext%3E%3C%2Fsvg%3E",
+    }),
+    {
+      dataBase64: Buffer.from(textSvg).toString("base64"),
+      mimeType: "image/svg+xml",
+      sizeBytes: Buffer.byteLength(textSvg),
+    },
+  );
   assert.equal(
     viewer.getImagePreviewMimeType({ src: "data:image/png,%ZZ", fileName: "fallback.webp" }),
     "image/webp",
@@ -133,6 +145,38 @@ test("viewer index, image data parsing, and MIME inference cover inline and prox
     if (typeof previousFetch === "undefined") delete globalThis.fetch;
     else globalThis.fetch = previousFetch;
   }
+});
+
+test("context-menu actions close immediately and report failures through their persistent owner", async () => {
+  const events = [];
+  let rejectAction;
+  const action = new Promise((_, reject) => {
+    rejectAction = reject;
+  });
+  const pending = imagePreview.runImagePreviewContextMenuAction({
+    action: () => {
+      events.push("action");
+      return action;
+    },
+    fallback: "fallback",
+    onClose: () => events.push("close"),
+    onActionError: (message) => events.push(`error:${message}`),
+  });
+
+  assert.deepEqual(events, ["close", "action"]);
+  rejectAction(new Error("clipboard denied"));
+  await pending;
+  assert.deepEqual(events, ["close", "action", "error:clipboard denied"]);
+
+  await imagePreview.runImagePreviewContextMenuAction({
+    action: () => {
+      throw new Error("save failed");
+    },
+    fallback: "save failed",
+    onClose: () => events.push("sync-close"),
+    onActionError: (message) => events.push(`sync-error:${message}`),
+  });
+  assert.deepEqual(events.slice(-2), ["sync-close", "sync-error:save failed"]);
 });
 
 test("viewer capabilities expose filesystem actions only for a complete verified attachment", () => {
@@ -261,13 +305,20 @@ test("chat attachment sources preserve verified metadata and keep menus scoped t
     viewerSource,
     /const writeImage = await prepareImagePreviewSave\([\s\S]*const data = await resolveData\(slide\)/,
   );
-  assert.match(viewerSource, /supportsDirectUploadedImageCopy && isVerifiedImagePreviewAttachment\(slide\.attachment\)/);
+  assert.match(
+    viewerSource,
+    /supportsDirectUploadedImageCopy &&[\s\S]*getImagePreviewMimeType\(slide\) !== "image\/svg\+xml" &&[\s\S]*isVerifiedImagePreviewAttachment\(slide\.attachment\)/,
+  );
   assert.match(viewerSource, /void prepareUploadedImagePreviewCopy\(\{/);
   assert.match(viewerSource, /prepareUploadedImagePreviewCopy\([\s\S]*\.catch\(\(\) => undefined\)/);
   assert.match(viewerSource, /await copyUploadedImagePreview\(/);
   assert.match(viewerSource, /const \[isCopying, setIsCopying\] = useState\(false\)/);
   assert.match(viewerSource, /const \[isSaving, setIsSaving\] = useState\(false\)/);
-  assert.match(viewerSource, /onClose\(\);\s*void action\(\)\s*\.catch/);
+  assert.match(viewerSource, /params\.onClose\(\);[\s\S]*return params\.action\(\)\.catch/);
+  assert.match(viewerSource, /export function ImagePreviewActionFeedback/);
+  assert.match(composerSource, /onActionError=\{setActionError\}/);
+  assert.match(userImageAttachmentSource, /onActionError=\{setActionError\}/);
+  assert.equal(toolImages.match(/onActionError=\{setActionError\}/g)?.length, 2);
   assert.match(viewerSource, /if \(!slide \|\| isSaving\) return;/);
   assert.match(viewerSource, /disabled=\{isSaving\}/);
   assert.match(viewerSource, /<Loader2 className="h-4 w-4 animate-spin" \/>/);
