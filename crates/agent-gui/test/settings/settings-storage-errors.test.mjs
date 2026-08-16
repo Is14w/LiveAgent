@@ -15,7 +15,7 @@ function loadStorage(invoke) {
   };
 }
 
-test("settings load failures retain diagnostics but use localized fallback copy", async () => {
+test("settings load failures prefer diagnostics and localize empty fallbacks", async () => {
   const backendError = new Error("backend storage diagnostic");
   const { errors, i18n, storage } = loadStorage(async (command) => {
     assert.equal(command, "settings_load_all");
@@ -41,11 +41,22 @@ test("settings load failures retain diagnostics but use localized fallback copy"
       "en-US",
       i18n.t,
     ),
+    "backend storage diagnostic",
+  );
+
+  const fallbackError = new errors.SettingsStorageError("load_failed");
+  assert.equal(
+    errors.getSettingsErrorMessage(
+      fallbackError,
+      i18n.t("app.settingsLoadFailed", "en-US"),
+      "en-US",
+      i18n.t,
+    ),
     "Failed to load settings. Default settings have been restored.",
   );
   assert.equal(
     errors.getSettingsErrorMessage(
-      error,
+      fallbackError,
       i18n.t("app.settingsLoadFailed", "zh-CN"),
       "zh-CN",
       i18n.t,
@@ -71,6 +82,15 @@ test("SSH settings conflict is a stable code with localized UI copy", () => {
 test("gateway settings sync failures use their dedicated localized copy", () => {
   const { errors, i18n } = loadStorage(async () => undefined);
   const error = new errors.SettingsStorageError("gateway_sync_failed");
+  const detailedError = new errors.SettingsStorageError(
+    "gateway_sync_failed",
+    new Error("gateway offline"),
+  );
+
+  assert.equal(
+    errors.getSettingsErrorMessage(detailedError, "unused", "en-US", i18n.t),
+    "gateway offline",
+  );
 
   assert.equal(
     errors.getSettingsErrorMessage(error, "unused", "en-US", i18n.t),

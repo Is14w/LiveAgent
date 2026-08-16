@@ -117,6 +117,8 @@ import type {
   RunningConversationSummary,
 } from "./gatewayTypes";
 
+const LEGACY_SETTINGS_CHANGED_MESSAGE = "SSH 设置已在另一端更新，已刷新为最新状态，请重新提交。";
+
 export type GatewaySettingsUpdateErrorCode = "settings_changed";
 
 export class GatewaySettingsUpdateError extends Error {
@@ -1029,7 +1031,7 @@ export class GatewayWebSocketRpcClient extends GatewayWebSocketTransport {
     const response = await this.request<GatewaySettingsUpdateResponse>("settings.update", payload);
     if (response?.accepted === false) {
       const message = response.message?.trim() || "Gateway settings update rejected";
-      if (message === "settings_changed") {
+      if (message === "settings_changed" || message === LEGACY_SETTINGS_CHANGED_MESSAGE) {
         throw new GatewaySettingsUpdateError("settings_changed", message);
       }
       throw new Error(message);

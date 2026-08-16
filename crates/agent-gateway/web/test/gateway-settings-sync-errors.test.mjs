@@ -21,21 +21,27 @@ function clientWithSettingsUpdateResponse(response) {
   return client;
 }
 
-test("settings conflict responses use a stable error code", async () => {
-  const client = clientWithSettingsUpdateResponse({
-    accepted: false,
-    message: "settings_changed",
-  });
+test("current and legacy settings conflicts use a stable error code", async () => {
+  for (const message of [
+    "settings_changed",
+    "SSH 设置已在另一端更新，已刷新为最新状态，请重新提交。",
+  ]) {
+    const client = clientWithSettingsUpdateResponse({ accepted: false, message });
 
-  await assert.rejects(
-    () => client.updateSettings({}),
-    (error) => {
-      assert.ok(error instanceof rpc.GatewaySettingsUpdateError);
-      assert.equal(error.code, "settings_changed");
-      assert.equal(error.responseMessage, "settings_changed");
-      return true;
-    },
-  );
+    await assert.rejects(
+      () => client.updateSettings({}),
+      (error) => {
+        assert.ok(error instanceof rpc.GatewaySettingsUpdateError);
+        assert.equal(error.code, "settings_changed");
+        assert.equal(error.responseMessage, message);
+        assert.equal(
+          settingsSync.getGatewaySettingsErrorMessage(error, "fallback", "en-US"),
+          "SSH settings were updated elsewhere. The latest settings have been loaded; submit your changes again.",
+        );
+        return true;
+      },
+    );
+  }
 });
 
 test("WebUI localizes settings conflict errors without hiding unknown responses", async () => {
