@@ -8,6 +8,9 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "app.name": "LiveAgent",
   "app.settingsSshSettingsChanged":
     "SSH settings were updated elsewhere. The latest settings have been loaded; submit your changes again.",
+  "common.currentUser": "Current user",
+  "common.dismissNotification": "Dismiss notification",
+  "common.logout": "Log out",
   "window.close": "Close",
   "tooltip.settings": "Settings",
   "tooltip.switchToLight": "Switch to Light Mode",
@@ -19,6 +22,25 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.pendingTitle": "New Chat",
   "chat.recentConversation": "Conversations",
   "chat.workspaceSection": "Workspaces",
+  "chat.workspaceDropFolder": "Drop to add workspaces",
+  "chat.workspaceDropFolderDescription": "Drop one or more local folders here",
+  "chat.workspaceDropOnlyFolders": "Only folders can be dropped on the workspace section",
+  "chat.workspaceDropEmptyFolder": "Folder “{name}” is empty and was skipped",
+  "chat.workspaceDropUploading": "Uploading folder “{name}” ({count} files)…",
+  "chat.workspaceDropCreated": "Created workspace “{name}”",
+  "chat.workspaceDropFailed": "Failed to import the dropped folders",
+  "chat.workspaceDropTooManyFiles":
+    "The folder holds too many files (over {max}); trim it and retry",
+  "chat.workspaceDropTooLarge": "The folder is larger than {max} MiB; trim it and retry",
+  "chat.workspaceMountDropNoProject":
+    "Select a workspace before dropping folders to mount them as project directories",
+  "chat.workspaceMountDropSuccess":
+    "Mounted {count} folder(s) as read-only project directories (adjust in project settings)",
+  "chat.workspaceMountDropSkippedInside":
+    "Skipped {count} folder(s) already inside the current workspace",
+  "chat.workspaceMountDropSkippedOverlap":
+    "Skipped {count} folder(s) overlapping existing project directories",
+  "chat.workspaceMountDropFailed": "Failed to mount project directories",
   "chat.workspaceCreate": "New workspace",
   "chat.workspaceAdd": "Add…",
   "chat.workspaceUngrouped": "Ungrouped",
@@ -66,6 +88,54 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.workspaceCloneWebDisabled": "Enable Web Git in Remote settings before cloning.",
   "chat.workspaceNewConversation": "New conversation",
   "chat.workspaceMore": "More",
+  "chat.workspaceConfigure": "Configure",
+  "chat.workspaceSettingsTitle": "Project settings",
+  "chat.workspaceSettingsNavigation": "Project settings navigation",
+  "chat.workspaceSettingsGeneral": "General",
+  "chat.workspaceSettingsDirectories": "Directories & permissions",
+  "chat.workspaceSettingsResources": "Resources",
+  "chat.workspaceSettingsGeneralDescription":
+    "Manage the project name and review its type and default working directory.",
+  "chat.workspaceSettingsProjectName": "Project name",
+  "chat.workspaceSettingsProjectNameDescription":
+    "This name appears in the sidebar and project selectors.",
+  "chat.workspaceSettingsProjectNameRequired": "Project name is required.",
+  "chat.workspaceSettingsProjectNameReadonly": "The default workspace name cannot be changed.",
+  "chat.workspaceSettingsProjectType": "Project type",
+  "chat.workspaceSettingsKindManaged": "Managed project",
+  "chat.workspaceSettingsKindFolder": "Local folder",
+  "chat.workspaceSettingsKindHistory": "History workspace",
+  "chat.workspaceSettingsPrimaryDirectory": "Primary directory",
+  "chat.workspaceSettingsPrimaryHint":
+    "The primary directory remains the default location for conversations, Git, terminals, and the file tree. Additional directories do not change project ownership.",
+  "chat.workspaceSettingsDirectoriesDescription":
+    "Add out-of-project roots for structured file tools and control read or write access. This setting does not sandbox Bash or process tools; command access still follows existing tool policy.",
+  "chat.workspaceSettingsAddDirectory": "Add directory",
+  "chat.workspaceSettingsPrimaryBadge": "Default workspace",
+  "chat.workspaceSettingsDirectoriesUnavailable": "Directory grant service unavailable",
+  "chat.workspaceSettingsDirectoriesDesktopOnly":
+    "This environment is not connected to local directory permissions. Configure them in the desktop app.",
+  "chat.workspaceSettingsDirectoriesGatewayDescription":
+    "WebUI is not connected to the target desktop Agent. Directory grants can be managed remotely after the connection recovers.",
+  "chat.workspaceSettingsDirectoriesLoading": "Loading directory permissions…",
+  "chat.workspaceSettingsDirectoriesEmpty": "No additional directories",
+  "chat.workspaceSettingsDirectoriesEmptyDescription":
+    "Add shared code, API schemas, or documentation so the Agent can access them with the permission you choose.",
+  "chat.workspaceSettingsDirectoryAlias": "Directory alias",
+  "chat.workspaceSettingsDirectoryStateActive": "Available",
+  "chat.workspaceSettingsDirectoryStateMissing": "Missing",
+  "chat.workspaceSettingsDirectoryStateChanged": "Changed",
+  "chat.workspaceSettingsDirectoryStatePendingApproval": "Pending approval",
+  "chat.workspaceSettingsRemoveDirectory": "Remove directory",
+  "chat.workspaceSettingsDirectoryAccess": "Access",
+  "chat.workspaceSettingsDirectoryRead": "Read-only reference",
+  "chat.workspaceSettingsDirectoryWrite": "Allow edits",
+  "chat.workspaceSettingsDirectoryDuplicate":
+    "This directory has already been added to the project.",
+  "chat.workspaceSettingsResourcesDescription":
+    "Control which Skills and MCP services this project exposes to the Agent.",
+  "chat.workspaceRootGrantsRevokeFailed":
+    "Failed to revoke additional directory access; the workspace was not removed.",
   "chat.workspaceResources": "Configure Skills & MCP",
   "chat.workspaceResourcesTitle": "Workspace resources",
   "chat.workspaceResourcesModeInherit": "Use defaults",
@@ -288,7 +358,8 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.upload.closePreview": "Close preview",
   "chat.upload.maxFiles": "Upload up to {max} files",
   "chat.upload.dropReady": "Drop to upload files",
-  "chat.upload.dropHint": "Supports files readable by the current Read tool",
+  "chat.upload.dropHint":
+    "Supports files readable by the current Read tool; folders mount as project directories",
   "chat.upload.dropBusy": "File upload is not available right now",
   "chat.upload.dropLimit": "Up to {max} files",
   "chat.upload.dropDisabledHint": "Resolve the issue above to enable drag-and-drop",
@@ -904,6 +975,7 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "workspaceSftp.newFolder": "New Folder",
   "workspaceSftp.newFolderPrompt": "Folder name",
   "workspaceSftp.creatingFolder": "Creating folder",
+  "workspaceSftp.edit": "Edit",
   "workspaceSftp.rename": "Rename",
   "workspaceSftp.renamePrompt": "New name",
   "workspaceSftp.renaming": "Renaming",
@@ -970,6 +1042,9 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "workspaceEditor.saveFailed": "Save failed",
   "workspaceEditor.reloadFailed": "Reload failed",
   "workspaceEditor.conflictMessage": "The file changed on disk. Reload it before saving.",
+  "workspaceEditor.remoteTabBadge": "SFTP",
+  "workspaceEditor.remoteTooLarge": "This remote file exceeds the 3 MB editing limit.",
+  "workspaceEditor.remoteUnavailable": "Remote editing is unavailable: no SFTP client.",
   "workspaceEditor.cancel": "Cancel",
   "workspaceEditor.discard": "Discard",
   "workspaceEditor.closeDirtyTitle": "Save changes before closing the editor?",

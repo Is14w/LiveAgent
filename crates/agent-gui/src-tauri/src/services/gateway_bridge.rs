@@ -13,11 +13,19 @@ use crate::commands::{
         fs_write_text_sync,
     },
     git::{git_gateway_clone_task_action_sync, GitCloneTaskRegistry},
+    root_grants::{
+        workspace_root_grants_apply, workspace_root_grants_list, workspace_root_grants_revoke,
+        WorkspaceRootAccess, WorkspaceRootGrant, WorkspaceRootGrantDraft,
+    },
     settings::{load_providers, open_db},
     system::{
-        system_create_project_folder_sync, system_import_uploaded_readable_files_sync,
-        system_list_skill_files_sync, system_read_skill_metadata_sync, system_read_skill_text_sync,
-        system_read_uploaded_image_preview_sync, SystemReadableFileUploadInput,
+        system_create_project_folder_sync, system_import_directory_abort_sync,
+        system_import_directory_chunk_sync, system_import_directory_commit_sync,
+        system_import_directory_start_sync, system_import_directory_sync,
+        system_import_uploaded_readable_files_sync, system_list_skill_files_sync,
+        system_read_skill_metadata_sync, system_read_skill_text_sync,
+        system_read_uploaded_image_preview_sync, SystemImportDirectoryInputFile,
+        SystemReadableFileUploadInput,
     },
 };
 use crate::services::automation::{
@@ -556,6 +564,65 @@ pub async fn handle_fs_roots() -> Result<proto::FsRootsResponse, String> {
         })
 }
 
+fn workspace_root_grant_to_proto(grant: WorkspaceRootGrant) -> proto::WorkspaceRootGrant {
+    proto::WorkspaceRootGrant {
+        id: grant.id,
+        project_id: grant.project_id,
+        project_path_key: grant.project_path_key,
+        alias: grant.alias,
+        display_path: grant.display_path,
+        canonical_path: grant.canonical_path,
+        access: grant.access.as_str().to_string(),
+        state: grant.state.as_str().to_string(),
+        created_at: grant.created_at,
+        updated_at: grant.updated_at,
+    }
+}
+
+pub async fn handle_workspace_root_grants(
+    request: proto::WorkspaceRootGrantsRequest,
+) -> Result<proto::WorkspaceRootGrantsResponse, String> {
+    let action = request.action.trim();
+    let grants = match action {
+        "list" => {
+            if !request.grants.is_empty() {
+                return Err("列出目录授权时不能携带授权草稿".to_string());
+            }
+            workspace_root_grants_list(request.project_id, request.project_path).await?
+        }
+        "apply" => {
+            let drafts = request
+                .grants
+                .into_iter()
+                .map(|grant| {
+                    Ok(WorkspaceRootGrantDraft {
+                        id: grant.id,
+                        alias: grant.alias,
+                        display_path: grant.display_path,
+                        access: WorkspaceRootAccess::parse(grant.access.trim())?,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            workspace_root_grants_apply(request.project_id, request.project_path, drafts).await?
+        }
+        "revoke" => {
+            if !request.project_path.trim().is_empty() || !request.grants.is_empty() {
+                return Err("撤销目录授权时只能提供项目 id".to_string());
+            }
+            workspace_root_grants_revoke(request.project_id).await?;
+            Vec::new()
+        }
+        _ => return Err(format!("不支持的目录授权操作：{action}")),
+    };
+
+    Ok(proto::WorkspaceRootGrantsResponse {
+        grants: grants
+            .into_iter()
+            .map(workspace_root_grant_to_proto)
+            .collect(),
+    })
+}
+
 pub async fn handle_fs_list_dirs(
     request: proto::FsListDirsRequest,
 ) -> Result<proto::FsListDirsResponse, String> {
@@ -854,6 +921,64 @@ pub async fn handle_upload_readable_files(
             })
             .collect(),
         skipped: response.skipped,
+    })
+}
+
+pub async fn handle_import_directory(
+    request: proto::ImportDirectoryRequest,
+) -> Result<proto::ImportDirectoryResponse, String> {
+    let transfer_id = request.transfer_id.clone();
+    let operation = proto::ImportDirectoryOperation::try_from(request.operation)
+        .map_err(|_| format!("不支持的目录导入操作：{}", request.operation))?;
+    let outcome = tauri::async_runtime::spawn_blocking(move || match operation {
+        proto::ImportDirectoryOperation::Start => system_import_directory_start_sync(
+            request.transfer_id,
+            request.name,
+            request.target,
+            request.total_files,
+            request.total_bytes,
+        ),
+        proto::ImportDirectoryOperation::WriteChunk => system_import_directory_chunk_sync(
+            request.transfer_id,
+            request.relative_path,
+            request.offset,
+            request.chunk,
+            request.file_complete,
+        ),
+        proto::ImportDirectoryOperation::Commit => {
+            system_import_directory_commit_sync(request.transfer_id)
+        }
+        proto::ImportDirectoryOperation::Abort => {
+            system_import_directory_abort_sync(request.transfer_id)?;
+            Ok(crate::commands::system::SystemImportDirectoryOutcome {
+                root_path: String::new(),
+                file_count: 0,
+                skipped: Vec::new(),
+                received_bytes: 0,
+            })
+        }
+        proto::ImportDirectoryOperation::Unspecified => {
+            #[allow(deprecated)]
+            let files = request
+                .files
+                .into_iter()
+                .map(|file| SystemImportDirectoryInputFile {
+                    relative_path: file.relative_path,
+                    content: file.content,
+                })
+                .collect();
+            system_import_directory_sync(request.name, request.target, files)
+        }
+    })
+    .await
+    .map_err(|e| format!("gateway import directory join failed: {e}"))??;
+
+    Ok(proto::ImportDirectoryResponse {
+        root_path: outcome.root_path,
+        file_count: i32::try_from(outcome.file_count).unwrap_or(i32::MAX),
+        skipped: outcome.skipped,
+        transfer_id,
+        received_bytes: outcome.received_bytes,
     })
 }
 

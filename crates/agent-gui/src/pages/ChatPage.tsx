@@ -7,7 +7,7 @@ import type { MentionComposerHandle } from "@liveagent/ui/components/chat/Mentio
 import { NotifyToast } from "@liveagent/ui/components/chat/NotifyToast";
 import { SharedHistoryManagerModal } from "@liveagent/ui/components/chat/SharedHistoryManagerModal";
 import { WorkspaceCloneModal } from "@liveagent/ui/components/chat/WorkspaceCloneModal";
-import { WorkspaceResourceSettingsDrawer } from "@liveagent/ui/components/chat/WorkspaceResourceSettingsDrawer";
+import { WorkspaceProjectSettingsModal } from "@liveagent/ui/components/chat/WorkspaceProjectSettingsModal";
 import { ProjectToolsPanelToggle } from "@liveagent/ui/components/project-tools/ProjectToolsPanelToggle";
 import { RightDockPanel } from "@liveagent/ui/components/project-tools/RightDockPanel";
 import { useConfirmDialog } from "@liveagent/ui/components/ui/confirm-dialog";
@@ -43,6 +43,7 @@ import { listen } from "@tauri-apps/api/event";
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadComposerUploadedImagePreview } from "../agent-ui-adapters/composerImagePreview";
 import { WorkspaceCloneTaskOverlayAdapter } from "../agent-ui-adapters/workspaceCloneTasks";
+import { desktopWorkspaceProjectRootClient } from "../agent-ui-adapters/workspaceProjectRoots";
 import { MacOsTitleBarToggle } from "../components/MacOsTitleBarSpacer";
 import type { CompactionStatus } from "../lib/chat/compaction/types";
 import {
@@ -53,12 +54,14 @@ import {
 } from "../lib/chat/conversation/conversationState";
 import type { ChatHistorySummary } from "../lib/chat/history/chatHistory";
 import { memoryExtraction } from "../lib/chat/memory/extractionController";
+import { memoryTurnInjection } from "../lib/chat/memory/injectionController";
 import {
   buildFallbackConversationTitle,
   createConversationIdentity,
   createPendingHistoryItem,
   getFirstUserMessageText,
 } from "../lib/chat/page/chatPageHelpers";
+import { skillMentionInjection } from "../lib/chat/skills/mentionInjection";
 import { tauriGitClient } from "../lib/git/tauriGitClient";
 import { buildMemoryOverviewSection } from "../lib/memory/prompts/injection";
 import {
@@ -114,6 +117,7 @@ import { useContextUsageTokensSource } from "./chat/hooks/useContextUsageTokensS
 import { useMirroredNullableState } from "./chat/hooks/useMirroredNullableState";
 import { useNotifyToasts } from "./chat/hooks/useNotifyToasts";
 import { useTauriFileDrop } from "./chat/hooks/useTauriFileDrop";
+import { useUploadZoneDrop } from "./chat/hooks/useUploadZoneDrop";
 import {
   getQueuedConversationIds,
   removeQueuedChatTurnsForConversation,
@@ -218,8 +222,8 @@ export function ChatPage(props: ChatPageProps) {
   const {
     activeView,
     setActiveView,
-    resourceSettingsProject,
-    setResourceSettingsProject,
+    projectSettingsProject,
+    setProjectSettingsProject,
     rightDockOpen,
     setRightDockOpen,
   } = useApplicationViewState<WorkspaceProject>();
@@ -232,10 +236,6 @@ export function ChatPage(props: ChatPageProps) {
     activeWorkspaceProjectPath,
     sidebarScope,
     historyScopeKey,
-    projectRenamingId,
-    setProjectRenamingId,
-    projectRenameDraft,
-    setProjectRenameDraft,
     activateWorkspaceProject,
     handleSelectWorkspaceProject,
     handleNewConversationForProject,
@@ -247,6 +247,7 @@ export function ChatPage(props: ChatPageProps) {
     workspaceCreateModalOpen,
     setWorkspaceCreateModalOpen,
     handleOpenWorkspaceFolder,
+    handleDropWorkspaceFolders,
     handleCloneWorkspaceProject,
     handleOpenClonedWorkspace,
     handleOpenWorktree,
@@ -257,9 +258,7 @@ export function ChatPage(props: ChatPageProps) {
     handleMoveWorkspaceProjectToGroup,
     handleToggleWorkspaceGroupCollapsed,
     handleLoadWorkspaceRemoteBranches,
-    handleStartRenamingWorkspaceProject,
-    handleCommitWorkspaceProjectRename,
-    handleCancelWorkspaceProjectRename,
+    commitWorkspaceProjectRename,
     handleSetWorkspaceProjectPinned,
     handleSidebarProjectsCollapsedChange,
     handleSidebarRecentCollapsedChange,
@@ -757,6 +756,8 @@ export function ChatPage(props: ChatPageProps) {
       gatewayBridgeHistorySummaryRef.current.delete(key);
       setPendingUploadsForConversation(key, []);
       memoryExtraction.dispose(key);
+      memoryTurnInjection.dispose(key);
+      skillMentionInjection.dispose(key);
       deleteConversationArtifacts(key);
       setQueuedChatTurnsState((current) => removeQueuedChatTurnsForConversation(current, key));
     },
@@ -881,8 +882,6 @@ export function ChatPage(props: ChatPageProps) {
     activeWorkspaceProject,
     activateWorkspaceProject,
     setActiveWorkspaceProjectId,
-    setProjectRenamingId,
-    setProjectRenameDraft,
     terminalProjectPathKey,
     setTerminalSessions,
     setRightDockOpen,
@@ -1148,6 +1147,7 @@ export function ChatPage(props: ChatPageProps) {
 
   const { send } = useSendChatTurn({
     settings,
+    workspaceProjects,
     setSettings,
     getMcpSettings,
     getToolPolicies,
@@ -1602,11 +1602,18 @@ export function ChatPage(props: ChatPageProps) {
     ? t("chat.upload.dropHint")
     : t("chat.upload.dropDisabledHint");
   const fileDropLimitHint = t("chat.upload.dropLimit").replace("{max}", String(MAX_UPLOAD_FILES));
-  const { isFileDropActive } = useTauriFileDrop({
+  const { importUploadZonePaths } = useUploadZoneDrop({
     canDropUpload,
     fileDropTitle,
+    activeWorkspaceProject,
     importReadableFilePaths,
+    addNotify,
     setErrorMessage,
+    t,
+  });
+  const { isFileDropActive, isWorkspaceFolderDropActive } = useTauriFileDrop({
+    importUploadZonePaths,
+    importWorkspaceFolderPaths: handleDropWorkspaceFolders,
   });
 
   const { handleResendFromEdit } = useEditResend({
@@ -1652,9 +1659,8 @@ export function ChatPage(props: ChatPageProps) {
           workspaceProjectGroups={workspaceProjectGroups}
           activeProjectId={activeWorkspaceProject?.id}
           missingProjectPathKeys={missingWorkspaceProjectPathKeys}
-          projectRenamingId={projectRenamingId}
-          projectRenameDraft={projectRenameDraft}
           projectsCollapsed={settings.customSettings.chatSidebar.projectsCollapsed}
+          workspaceFolderDropActive={isWorkspaceFolderDropActive}
           recentCollapsed={settings.customSettings.chatSidebar.recentCollapsed}
           onProjectsCollapsedChange={handleSidebarProjectsCollapsedChange}
           onRecentCollapsedChange={handleSidebarRecentCollapsedChange}
@@ -1668,11 +1674,7 @@ export function ChatPage(props: ChatPageProps) {
           onNewConversationForProject={handleNewConversationForProject}
           onBrowseProjectInFileTree={handleBrowseWorkspaceProjectInFileTree}
           onBrowseProjectInSystemFileManager={handleBrowseWorkspaceProjectInSystemFileManager}
-          onConfigureProjectResources={setResourceSettingsProject}
-          onStartRenamingProject={handleStartRenamingWorkspaceProject}
-          onProjectRenameDraftChange={setProjectRenameDraft}
-          onCommitProjectRename={handleCommitWorkspaceProjectRename}
-          onCancelProjectRename={handleCancelWorkspaceProjectRename}
+          onConfigureProject={setProjectSettingsProject}
           onSetProjectPinned={handleSetWorkspaceProjectPinned}
           onRemoveProject={handleRemoveWorkspaceProject}
           onArchiveProject={handleArchiveWorkspaceProject}
@@ -1799,7 +1801,10 @@ export function ChatPage(props: ChatPageProps) {
             headerClassName: "relative z-20",
             headerOverlay: <NotifyToast items={notifyItems} onDismiss={dismissNotify} />,
             content: (
-              <>
+              <div
+                data-file-upload-drop-zone=""
+                className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
                 <ChangedFilesActionsProvider value={changedFilesActions}>
                   <ChatTranscript
                     conversationId={currentConversationId}
@@ -1892,7 +1897,7 @@ export function ChatPage(props: ChatPageProps) {
                     limitHint={fileDropLimitHint}
                   />
                 ) : null}
-              </>
+              </div>
             ),
           }}
           workspaceOverlays={
@@ -1906,14 +1911,8 @@ export function ChatPage(props: ChatPageProps) {
               workspaceEditorCleanupPending={workspaceOverlays.workspaceEditorCleanupPending}
               onWorkspaceEditorPreviewFile={workspaceOverlays.openWorkspaceFilePreview}
               onWorkspaceEditorInsertCodeMention={handleInsertCodeMention}
-              onWorkspaceEditorHide={() => workspaceOverlays.setWorkspaceEditorOpen(false)}
-              onWorkspaceEditorClose={() => {
-                workspaceOverlays.setWorkspaceEditorOpen(false);
-                workspaceOverlays.setWorkspaceEditorMounted(false);
-                workspaceOverlays.setWorkspaceEditorCleanupPending(false);
-                workspaceOverlays.setWorkspaceEditorOpenRequest(null);
-                workspaceOverlays.setWorkspaceEditorCloseRequestId(0);
-              }}
+              onWorkspaceEditorHide={workspaceOverlays.handleWorkspaceEditorHide}
+              onWorkspaceEditorClose={workspaceOverlays.handleWorkspaceEditorClosed}
               workspaceFilePreviewMounted={workspaceOverlays.workspaceFilePreviewMounted}
               workspaceFilePreviewOpenRequest={workspaceOverlays.workspaceFilePreviewOpenRequest}
               workspaceFilePreviewOpen={workspaceOverlays.workspaceFilePreviewOpen}
@@ -1932,6 +1931,7 @@ export function ChatPage(props: ChatPageProps) {
               onWorkspaceSshTerminalHide={() =>
                 workspaceOverlays.setWorkspaceSshTerminalOpen(false)
               }
+              onSshTerminalOpenFile={workspaceOverlays.handleOpenSftpFile}
             />
           }
         />
@@ -1974,17 +1974,20 @@ export function ChatPage(props: ChatPageProps) {
         onInsertCommitMention={handleRightDockInsertCommitMention}
         onInsertGitFileMention={handleRightDockInsertGitFileMention}
       />
-      {resourceSettingsProject ? (
-        <WorkspaceResourceSettingsDrawer
-          project={resourceSettingsProject}
+      {projectSettingsProject ? (
+        <WorkspaceProjectSettingsModal
+          project={projectSettingsProject}
           settings={settings}
           skills={availableSkills}
-          onClose={() => setResourceSettingsProject(null)}
+          rootClient={desktopWorkspaceProjectRootClient}
+          onClose={() => setProjectSettingsProject(null)}
+          onRenameProject={(name) => {
+            commitWorkspaceProjectRename(projectSettingsProject, name);
+          }}
           onSave={(draft) => {
             setSettings((prev) =>
-              updateWorkspaceResourceSettings(prev, resourceSettingsProject.path, draft),
+              updateWorkspaceResourceSettings(prev, projectSettingsProject.path, draft),
             );
-            setResourceSettingsProject(null);
           }}
         />
       ) : null}

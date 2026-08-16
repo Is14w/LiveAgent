@@ -8,7 +8,7 @@ import { SharedHistoryManagerModal } from "@liveagent/ui/components/chat/SharedH
 import { TaskProgressBar } from "@liveagent/ui/components/chat/TaskProgressBar";
 import { WorkspaceCloneModal } from "@liveagent/ui/components/chat/WorkspaceCloneModal";
 import { WorkspaceCloneTaskOverlay } from "@liveagent/ui/components/chat/WorkspaceCloneTaskOverlay";
-import { WorkspaceResourceSettingsDrawer } from "@liveagent/ui/components/chat/WorkspaceResourceSettingsDrawer";
+import { WorkspaceProjectSettingsModal } from "@liveagent/ui/components/chat/WorkspaceProjectSettingsModal";
 import { ChevronDown } from "@liveagent/ui/components/IconSet";
 import { ProjectToolsPanelToggle } from "@liveagent/ui/components/project-tools/ProjectToolsPanelToggle";
 import { RightDockPanel } from "@liveagent/ui/components/project-tools/RightDockPanel";
@@ -38,10 +38,12 @@ import { CHAT_RUNTIME_FOREGROUND_PREPARE_TIMEOUT_MS } from "./constants";
 import type { GatewayAppViewModel } from "./GatewayApp";
 import { isLocalDraftConversationId } from "./gatewayLocalDraft";
 import { HistorySwitchLoadingOverlay } from "./HistorySwitchLoadingOverlay";
+import { useWindowFileDropGuard } from "./hooks/useWindowFileDropGuard";
 import { GatewaySidebarContainer } from "./sidebar/GatewaySidebarContainer";
 import { UserMenu } from "./UserMenu";
 
 export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }) {
+  useWindowFileDropGuard();
   const {
     activeFloorKey,
     activeView,
@@ -99,7 +101,6 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
     handleBranchConversation,
     handleBrowseWorkspaceProjectInFileTree,
     handleCancelWorkspaceCloneTask,
-    handleCancelWorkspaceProjectRename,
     handleChatRuntimeControlsChange,
     handleChatTranscriptWidthChange,
     handleCloneWorkspaceProject,
@@ -132,6 +133,7 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
     handleOpenCreateWorkspaceProject,
     handleOpenShareModal,
     handleOpenSharedHistoryManager,
+    handleOpenSftpFile,
     handleOpenSshTerminal,
     handleOpenWorkspaceFile,
     handleOpenWorkspaceFolder,
@@ -164,7 +166,6 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
     handleSidebarRecentCollapsedChange,
     handleSidebarSelectConversation,
     handleSshProjectHostIdsChange,
-    handleStartRenamingWorkspaceProject,
     handleToggleHistoryShare,
     handleToggleWorkspaceGroupCollapsed,
     handleUnarchiveWorkspaceProject,
@@ -199,15 +200,13 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
     pendingUploadedFiles,
     prepareChatRuntime,
     projectPickerOpen,
-    projectRenameDraft,
-    projectRenamingId,
     projectTerminalSessions,
     projectToolsDisabledMessage,
     queuedChatEditSessionRef,
     queuedChatTurnsForDisplayedConversation,
     removeQueuedTurn,
     requestWorkspaceFilePreviewClose,
-    resourceSettingsProject,
+    projectSettingsProject,
     rightDockFileTreeState,
     rightDockOpen,
     rightDockProjectState,
@@ -218,8 +217,7 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
     setActiveFloorKey,
     setPendingUploadsForConversation,
     setProjectPickerOpen,
-    setProjectRenameDraft,
-    setResourceSettingsProject,
+    setProjectSettingsProject,
     setRightDockOpen,
     setSettings,
     setSharedManagerOpen,
@@ -293,7 +291,10 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
     workspaceFilePreviewMounted,
     workspaceFilePreviewOpen,
     workspaceFilePreviewOpenRequest,
+    workspaceFolderDropActive,
+    workspaceFolderDropHandlers,
     workspaceProjects,
+    workspaceProjectRootClient,
     workspaceSshTerminalMounted,
     workspaceSshTerminalOpen,
     workspaceSshTerminalOpenRequest,
@@ -328,9 +329,9 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
               workspaceProjectGroups={settings.system.workspaceProjectGroups}
               activeProjectId={activeWorkspaceProject?.id}
               missingProjectPathKeys={missingWorkspaceProjectPathKeys}
-              projectRenamingId={projectRenamingId}
-              projectRenameDraft={projectRenameDraft}
               projectsCollapsed={settings.customSettings.chatSidebar.projectsCollapsed}
+              workspaceFolderDropActive={workspaceFolderDropActive}
+              workspaceFolderDropHandlers={workspaceFolderDropHandlers}
               recentCollapsed={settings.customSettings.chatSidebar.recentCollapsed}
               canShareConversations={canShareHistory}
               sharedConversationCount={sharedHistoryItems.length}
@@ -349,11 +350,7 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
               onSelectProject={handleSelectWorkspaceProject}
               onNewConversationForProject={handleNewConversationForProject}
               onBrowseProjectInFileTree={handleBrowseWorkspaceProjectInFileTree}
-              onConfigureProjectResources={setResourceSettingsProject}
-              onStartRenamingProject={handleStartRenamingWorkspaceProject}
-              onProjectRenameDraftChange={setProjectRenameDraft}
-              onCommitProjectRename={handleCommitWorkspaceProjectRename}
-              onCancelProjectRename={handleCancelWorkspaceProjectRename}
+              onConfigureProject={setProjectSettingsProject}
               onSetProjectPinned={handleSetWorkspaceProjectPinned}
               onRemoveProject={handleRemoveWorkspaceProject}
               onArchiveProject={handleArchiveWorkspaceProject}
@@ -516,6 +513,7 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
 
                       <section
                         ref={transcriptStageRef}
+                        data-file-upload-drop-zone=""
                         className="gateway-transcript-stage"
                         // Preferred (persisted) width, so a fresh mount paints at
                         // the user's width instead of the default.
@@ -804,6 +802,7 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
                     sftpClient={sftpClient}
                     terminalSessions={terminalSessions}
                     onWorkspaceSshTerminalHide={hideWorkspaceSshTerminalOverlay}
+                    onSshTerminalOpenFile={handleOpenSftpFile}
                   />
                 }
               />
@@ -855,17 +854,28 @@ export function GatewayAppView({ viewModel }: { viewModel: GatewayAppViewModel }
             />
           ) : null}
 
-          {resourceSettingsProject ? (
-            <WorkspaceResourceSettingsDrawer
-              project={resourceSettingsProject}
+          {projectSettingsProject ? (
+            <WorkspaceProjectSettingsModal
+              project={projectSettingsProject}
               settings={settings}
               skills={availableSkills}
-              onClose={() => setResourceSettingsProject(null)}
+              rootClient={workspaceProjectRootClient}
+              rootClientUnavailableDescription={
+                workspaceProjectRootClient
+                  ? undefined
+                  : translate(
+                      "chat.workspaceSettingsDirectoriesGatewayDescription",
+                      settings.locale,
+                    )
+              }
+              onClose={() => setProjectSettingsProject(null)}
+              onRenameProject={(name) => {
+                handleCommitWorkspaceProjectRename(projectSettingsProject, name);
+              }}
               onSave={(draft) => {
                 setSettings((prev) =>
-                  updateWorkspaceResourceSettings(prev, resourceSettingsProject.path, draft),
+                  updateWorkspaceResourceSettings(prev, projectSettingsProject.path, draft),
                 );
-                setResourceSettingsProject(null);
               }}
             />
           ) : null}
