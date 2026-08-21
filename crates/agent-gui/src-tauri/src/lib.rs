@@ -735,6 +735,11 @@ pub fn run() {
     let stt_manager = Arc::new(services::stt::SttManager::default());
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Err(error) = show_main_window(app) {
+                eprintln!("failed to focus existing LiveAgent instance: {error}");
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_mcp_bridge::init())
