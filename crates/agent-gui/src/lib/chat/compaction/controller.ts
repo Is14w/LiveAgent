@@ -87,6 +87,8 @@ export type CompactionTurnBinding = {
   cancellation: TurnCancellation;
   debugLogger?: StreamDebugLogger;
   complete?: CompleteAssistantFn;
+  /** Observer owned by this turn; prevents a late old turn from reporting into a replacement. */
+  observer?: CompactionObserver;
   sinks: CompactionSinks;
   buildPreparedContext: (
     state: ConversationViewState,
@@ -193,6 +195,11 @@ export class CompactionController {
    */
   private fixedOverheadTokens = 0;
   private binding: CompactionTurnBinding | null = null;
+  // A conversation can start a replacement turn after force-stop while an old
+  // provider task is still unwinding. The lease keeps that old task from
+  // clearing or rolling back the replacement turn's binding.
+  private bindingGeneration = 0;
+  private activeBindingGeneration: number | null = null;
   private rollbackSnapshot: RollbackSnapshot | null = null;
   private inFlight = false;
   private statusPhase: CompactionStatus["phase"] = "idle";
@@ -271,18 +278,30 @@ export class CompactionController {
   bindTurn(binding: CompactionTurnBinding) {
     // A defensive rebind must not strand the previous observer interval.
     this.settleAbortedIfRunning();
+    const generation = ++this.bindingGeneration;
     this.binding = binding;
+    this.activeBindingGeneration = generation;
     this.rollbackSnapshot = null;
     this.inFlight = false;
+    return generation;
   }
 
-  unbindTurn() {
+  isTurnBound(generation: number) {
+    return this.binding !== null && this.activeBindingGeneration === generation;
+  }
+
+  unbindTurn(expectedGeneration?: number) {
+    if (expectedGeneration !== undefined && !this.isTurnBound(expectedGeneration)) {
+      return false;
+    }
     // Every published start receives exactly one terminal notification, even when a caller
     // tears down the turn without first reaching the ordinary completion path.
     this.settleAbortedIfRunning();
     this.binding = null;
+    this.activeBindingGeneration = null;
     this.rollbackSnapshot = null;
     this.inFlight = false;
+    return true;
   }
 
   get stats() {
@@ -393,8 +412,10 @@ export class CompactionController {
     includeUploadedFilesMetadata?: boolean;
   }): Promise<boolean> {
     const binding = this.binding;
+    const bindingGeneration = this.activeBindingGeneration;
     const presend = binding?.presend;
-    if (!binding || !presend) return false;
+    if (!binding || !presend || bindingGeneration === null) return false;
+    const ownsBinding = () => this.isTurnBound(bindingGeneration);
     if (binding.cancellation.userStop.signal.aborted) {
       throw createCompactionAbortError();
     }
@@ -489,6 +510,9 @@ export class CompactionController {
       );
       return true;
     } catch (error) {
+      if (!ownsBinding()) {
+        throw createCompactionAbortError();
+      }
       if (this.isAbortOutcome(scope.controller.signal, error)) {
         throw error;
       }
@@ -510,8 +534,10 @@ export class CompactionController {
       return false;
     } finally {
       scope.release();
-      this.inFlight = false;
-      this.binding?.sinks.setBridgeToolStatus?.(null);
+      if (ownsBinding()) {
+        this.inFlight = false;
+        this.binding?.sinks.setBridgeToolStatus?.(null);
+      }
     }
   }
 
@@ -527,9 +553,11 @@ export class CompactionController {
     manualContextUsage?: ManualContextUsageSnapshot;
   }): Promise<CompactionDuringRunResult> {
     const binding = this.binding;
-    if (!binding) {
+    const bindingGeneration = this.activeBindingGeneration;
+    if (!binding || bindingGeneration === null) {
       return { context: null, shouldDisableProtection: false, outcome: "skipped" };
     }
+    const ownsBinding = () => this.isTurnBound(bindingGeneration);
     // 覆盖"mid-stream abort 后、summarizer 启动前"用户恰好点停止的间隙。
     if (binding.cancellation.userStop.signal.aborted) {
       throw createCompactionAbortError();
@@ -663,6 +691,9 @@ export class CompactionController {
       );
       return { context: resumeContext, shouldDisableProtection: false, outcome: "compacted" };
     } catch (error) {
+      if (!ownsBinding()) {
+        throw createCompactionAbortError();
+      }
       if (this.isAbortOutcome(scope.controller.signal, error)) {
         throw error;
       }
@@ -699,8 +730,10 @@ export class CompactionController {
         : { context: null, shouldDisableProtection: false, outcome: "failed" };
     } finally {
       scope.release();
-      this.inFlight = false;
-      this.binding?.sinks.setBridgeToolStatus?.(null);
+      if (ownsBinding()) {
+        this.inFlight = false;
+        this.binding?.sinks.setBridgeToolStatus?.(null);
+      }
     }
   }
 
@@ -722,7 +755,7 @@ export class CompactionController {
     },
   ): Promise<ManualCompactionOutcome> {
     if (this.binding || this.inFlight) return { status: "busy" };
-    this.bindTurn(binding);
+    const bindingGeneration = this.bindTurn(binding);
     try {
       const probe = this.probeManualDecision(binding, state, contextUsage, options?.tools);
       if (!probe.shouldCompact) {
@@ -750,12 +783,12 @@ export class CompactionController {
       }
     } catch {
       // 中止或意外异常：走统一善后（回滚快照 / running 态复位 idle）。
-      await this.handleTurnAbort();
+      await this.handleTurnAbort(bindingGeneration);
       return binding.cancellation.userStop.signal.aborted
         ? { status: "failed", aborted: true }
         : { status: "failed" };
     } finally {
-      this.unbindTurn();
+      this.unbindTurn(bindingGeneration);
     }
   }
 
@@ -793,7 +826,10 @@ export class CompactionController {
   }
 
   // 用户中止后的统一善后：有快照则回滚（恢复状态/输入框/可选持久化）并返回 true。
-  async handleTurnAbort(): Promise<boolean> {
+  async handleTurnAbort(expectedGeneration?: number): Promise<boolean> {
+    if (expectedGeneration !== undefined && !this.isTurnBound(expectedGeneration)) {
+      return false;
+    }
     const binding = this.binding;
     const snapshot = this.rollbackSnapshot;
     this.rollbackSnapshot = null;
@@ -882,6 +918,10 @@ export class CompactionController {
     this.binding?.sinks.publishStatus?.(status);
   }
 
+  private activeObserver() {
+    return this.binding?.observer ?? this.observer;
+  }
+
   private publishRunning(
     trigger: CompactionTrigger,
     sourceSegmentIndex: number,
@@ -892,7 +932,7 @@ export class CompactionController {
     this.observedTrigger = trigger;
     this.observedTokensBefore = decision.totalTokens;
     this.notifyObserver(() =>
-      this.observer?.onStart({ trigger, tokensBefore: decision.totalTokens }),
+      this.activeObserver()?.onStart({ trigger, tokensBefore: decision.totalTokens }),
     );
     this.publishStatus({
       phase: "running",
@@ -916,7 +956,7 @@ export class CompactionController {
     // was unwinding. Late completion is then operationally stale and must not emit a second end.
     if (this.observedTrigger !== trigger || this.observedOperationId !== operationId) return;
     this.notifyObserver(() =>
-      this.observer?.onEnd({
+      this.activeObserver()?.onEnd({
         trigger,
         status: "complete",
         ...(this.observedTokensBefore === undefined
@@ -940,7 +980,7 @@ export class CompactionController {
   private settleFailed(trigger: CompactionTrigger, message: string, operationId: number) {
     if (this.observedTrigger !== trigger || this.observedOperationId !== operationId) return;
     this.notifyObserver(() =>
-      this.observer?.onEnd({
+      this.activeObserver()?.onEnd({
         trigger,
         status: "error",
         ...(this.observedTokensBefore === undefined
@@ -960,7 +1000,7 @@ export class CompactionController {
       return false;
     }
     this.notifyObserver(() =>
-      this.observer?.onEnd({
+      this.activeObserver()?.onEnd({
         trigger,
         status: "aborted",
         ...(this.observedTokensBefore === undefined
