@@ -31,6 +31,7 @@ import type {
 } from "../gateway/useGatewayRunMirrorCoordinator";
 import type { PersistConversationAction } from "../history/useConversationHistoryActions";
 import type { ConversationRuntimeEntry } from "./chatPageRuntime";
+import { flushTrajectoryInBackground } from "./chatRunFinalization";
 import {
   buildPreparedContext as buildPreparedConversationContext,
   buildResumeContext as buildResumeConversationContext,
@@ -524,7 +525,7 @@ export function useManualCompaction(params: {
           stopHandlerRegistered && getConversationAbortController(conversationId) === cancellation.userStop;
         const flushRecordedTrajectory = flushTrajectory as (() => Promise<void>) | null;
         if (flushRecordedTrajectory !== null) {
-          await flushRecordedTrajectory();
+          flushTrajectoryInBackground(flushRecordedTrajectory, "manual compaction");
         }
         if (stopHandlerRegistered) {
           clearConversationStopHandler(conversationId, handleStop);
