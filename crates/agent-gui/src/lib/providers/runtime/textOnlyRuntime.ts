@@ -539,7 +539,7 @@ export async function streamAssistantMessage(params: {
           }
         }
 
-        let final = sanitizeAssistantMessage(await s.result());
+        let final = sanitizeAssistantMessage(await raceWithAbort(s.result(), params.signal));
         if (final.stopReason === "error" || final.stopReason === "aborted") {
           throw new Error(
             normalizeErrorMessage(
@@ -650,7 +650,7 @@ export async function completeAssistantMessage(params: {
   return withPowerActivity("assistant-complete", `${params.providerId}:${modelId}`, async () => {
     try {
       const s = llm.stream({ model: m, context: callContext, options });
-      const final = await s.result();
+      const final = await raceWithAbort(s.result(), params.signal);
 
       if (final.stopReason === "error" || final.stopReason === "aborted") {
         throw new Error(
