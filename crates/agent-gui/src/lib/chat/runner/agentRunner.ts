@@ -14,7 +14,11 @@ import {
   mergeHostedSearchBlocks,
 } from "@liveagent/ui/lib/chat/hostedSearch";
 import type { PreparedProxyRequest } from "@liveagent/ui/lib/providers/proxy";
-import { buildStreamRequestDebugPayload, type StreamDebugLogger } from "../../debug/agentDebug";
+import {
+  buildStreamRequestDebugPayload,
+  flushDebugLoggerInBackground,
+  type StreamDebugLogger,
+} from "../../debug/agentDebug";
 import { capturePrefixShape, comparePrefixShape } from "../../debug/prefixCacheShape";
 import { readPreviousPrefixShape, recordPrefixShape } from "../../debug/prefixShapeStore";
 import {
@@ -2010,7 +2014,7 @@ export async function runAssistantWithTools(params: {
         throw new Error(normalizeErrorMessage(assistant.errorMessage, "Cancelled"));
       }
 
-      await params.debugLogger?.flush();
+      flushDebugLoggerInBackground(params.debugLogger, "agent runner");
       return {
         messages,
         assistant,
@@ -2022,7 +2026,7 @@ export async function runAssistantWithTools(params: {
       nativeWebSearchStatusController.finish();
       params.onToolStatus?.(null);
       params.debugLogger?.logError(error);
-      await params.debugLogger?.flush();
+      flushDebugLoggerInBackground(params.debugLogger, "agent runner");
       throw error;
     } finally {
       queueAllHostedSearchFinalizations("dispose");

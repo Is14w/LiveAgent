@@ -5,7 +5,11 @@ import {
   type HostedSearchOrderedBlock,
   mergeHostedSearchBlocks,
 } from "@liveagent/ui/lib/chat/hostedSearch";
-import { buildStreamRequestDebugPayload, type StreamDebugLogger } from "../../debug/agentDebug";
+import {
+  buildStreamRequestDebugPayload,
+  flushDebugLoggerInBackground,
+  type StreamDebugLogger,
+} from "../../debug/agentDebug";
 import type { ProviderId } from "../../settings";
 import { withPowerActivity } from "../../system/powerActivity";
 import {
@@ -563,7 +567,7 @@ export async function streamAssistantMessage(params: {
           { orderedBlocks },
         ) as AssistantMessage;
         params.debugLogger?.logResult(final);
-        await params.debugLogger?.flush();
+        flushDebugLoggerInBackground(params.debugLogger, "text stream");
         return final;
       }
 
@@ -576,7 +580,7 @@ export async function streamAssistantMessage(params: {
         hostedSearchAggregator.fail();
       }
       params.debugLogger?.logError(error);
-      await params.debugLogger?.flush();
+      flushDebugLoggerInBackground(params.debugLogger, "text stream");
       throw error;
     }
   });
@@ -649,11 +653,11 @@ export async function completeAssistantMessage(params: {
       }
 
       params.debugLogger?.logResult(final);
-      await params.debugLogger?.flush();
+      flushDebugLoggerInBackground(params.debugLogger, "text completion");
       return final;
     } catch (error) {
       params.debugLogger?.logError(error);
-      await params.debugLogger?.flush();
+      flushDebugLoggerInBackground(params.debugLogger, "text completion");
       throw error;
     }
   });
