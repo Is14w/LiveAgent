@@ -5,8 +5,8 @@ import {
   createAssistantMessageEventStream,
   isRetryableAssistantError,
 } from "@earendil-works/pi-ai";
-import { isExtensionRetryableError, type RetryErrorExtension } from "./streamRetry";
 import { raceWithAbort } from "../../cancellation/abortRace";
+import { isExtensionRetryableError, type RetryErrorExtension } from "./streamRetry";
 
 /**
  * Provider auto-failover runtime (cc-switch inspired).

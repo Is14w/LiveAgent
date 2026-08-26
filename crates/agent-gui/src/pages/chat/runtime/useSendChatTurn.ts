@@ -1407,7 +1407,10 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
           // The new message's own stable identity: lets remote transcripts bind
           // their user bubble's messageRef immediately, so a follow-up edit of
           // this message can anchor its rebase without a history round-trip.
-          messageRef: findHistoryMessageRefByMessageId(nextConversationState, pendingUserMessage.id),
+          messageRef: findHistoryMessageRefByMessageId(
+            nextConversationState,
+            pendingUserMessage.id,
+          ),
         }),
       );
     } catch (error) {

@@ -182,10 +182,7 @@ function errorText(error: unknown): string {
   return String(error) || "Provider stream failed";
 }
 
-function buildTransportErrorMessage(
-  error: unknown,
-  previous?: AssistantMessage,
-): AssistantMessage {
+function buildTransportErrorMessage(error: unknown, previous?: AssistantMessage): AssistantMessage {
   return {
     ...(previous ?? {}),
     role: "assistant",
@@ -197,9 +194,7 @@ function buildTransportErrorMessage(
 
 function isRetryableTransportFailure(error: unknown): boolean {
   const assistantError =
-    error && typeof error === "object" && "role" in error
-      ? (error as AssistantMessage)
-      : undefined;
+    error && typeof error === "object" && "role" in error ? (error as AssistantMessage) : undefined;
   if (assistantError && isRetryableAssistantError(assistantError)) return true;
   const message = errorText(error);
   if (/\b(?:abort|aborted|cancel|cancelled|canceled)\b/i.test(message)) return false;
@@ -268,8 +263,7 @@ function raceWithTimeout<T>(
       cleanup();
       reject(error);
     };
-    const onAbort = () =>
-      fail(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+    const onAbort = () => fail(signal?.reason ?? new DOMException("Aborted", "AbortError"));
 
     if (signal) signal.addEventListener("abort", onAbort, { once: true });
     if (timeoutMs > 0) {
@@ -297,11 +291,11 @@ function readTerminalEventAfterAbort(
     Promise.resolve()
       .then(() => iterator.next())
       .then(
-      (next) => {
-        if (next.done || isTerminalEvent(next.value)) finish(next);
-        else finish({ done: true, value: undefined });
-      },
-      () => finish({ done: true, value: undefined }),
+        (next) => {
+          if (next.done || isTerminalEvent(next.value)) finish(next);
+          else finish({ done: true, value: undefined });
+        },
+        () => finish({ done: true, value: undefined }),
       );
   });
 }
@@ -344,10 +338,7 @@ export function withStreamRetry(
 ): AssistantMessageEventStream {
   const maxAttempts = Math.max(1, options?.maxAttempts ?? DEFAULT_STREAM_RETRY_MAX_ATTEMPTS);
   const disabled = options?.disabled ?? false;
-  const idleTimeoutMs = Math.max(
-    0,
-    options?.idleTimeoutMs ?? DEFAULT_STREAM_RETRY_IDLE_TIMEOUT_MS,
-  );
+  const idleTimeoutMs = Math.max(0, options?.idleTimeoutMs ?? DEFAULT_STREAM_RETRY_IDLE_TIMEOUT_MS);
   const signal = options?.signal;
 
   const output = createAssistantMessageEventStream();
@@ -503,10 +494,7 @@ export function withStreamRetry(
           } catch (error) {
             // A synchronous provider construction failure is still a
             // transport attempt. Feed it through the same bounded retry loop.
-            source = createSyntheticErrorStream(
-              error,
-              terminalAssistantMessage(terminal),
-            );
+            source = createSyntheticErrorStream(error, terminalAssistantMessage(terminal));
             continue;
           }
         }
@@ -519,7 +507,11 @@ export function withStreamRetry(
       // done/error event through iteration and only expose the final message
       // via result(). output.end() is idempotent once a terminal event has
       // already been pushed above, so this also safety-nets that case.
-      output.end(result ?? terminalAssistantMessage(terminal) ?? buildTransportErrorMessage("Provider stream ended without a result"));
+      output.end(
+        result ??
+          terminalAssistantMessage(terminal) ??
+          buildTransportErrorMessage("Provider stream ended without a result"),
+      );
       return;
     }
   })().catch((error) => {

@@ -1781,13 +1781,12 @@ export async function runAgentConversationTurn(params: RunAgentConversationTurnP
         updateToolStatus(s, transcriptStore);
       },
     });
-    const extraction = await raceWithAbort(
-      extractionPromise,
-      cancellation.userStop.signal,
-    ).catch((error) => {
-      if (cancellation.userStop.signal.aborted) return null;
-      throw error;
-    });
+    const extraction = await raceWithAbort(extractionPromise, cancellation.userStop.signal).catch(
+      (error) => {
+        if (cancellation.userStop.signal.aborted) return null;
+        throw error;
+      },
+    );
     if (!extraction || cancellation.userStop.signal.aborted) return;
     if (extraction.emittedMessages.length > 0) {
       completedState = appendRenderOnlyMessagesToConversation(

@@ -522,7 +522,8 @@ export function useManualCompaction(params: {
         return result;
       } finally {
         const ownsRunOnFinalization =
-          stopHandlerRegistered && getConversationAbortController(conversationId) === cancellation.userStop;
+          stopHandlerRegistered &&
+          getConversationAbortController(conversationId) === cancellation.userStop;
         const flushRecordedTrajectory = flushTrajectory as (() => Promise<void>) | null;
         if (flushRecordedTrajectory !== null) {
           flushTrajectoryInBackground(flushRecordedTrajectory, "manual compaction");
