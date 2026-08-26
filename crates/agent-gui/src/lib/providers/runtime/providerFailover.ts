@@ -298,6 +298,15 @@ function buildAbortedAssistantMessage(candidate: ProviderFailoverCandidate): Ass
   } as AssistantMessage;
 }
 
+function endAsAborted(
+  output: AssistantMessageEventStream,
+  candidate: ProviderFailoverCandidate,
+): void {
+  const final = buildAbortedAssistantMessage(candidate);
+  output.push({ type: "error", reason: "aborted", error: final });
+  output.end(final);
+}
+
 function observeSourceResult(source: AssistantMessageEventStream): void {
   try {
     // A terminal event is authoritative for the wrapped output. Keep a
@@ -362,6 +371,11 @@ export function withProviderFailover(
       const { candidate, index } = attemptPlan[attempt];
       const isLastAttempt = attempt === maxAttempts - 1;
 
+      if (signal?.aborted) {
+        endAsAborted(output, candidate);
+        return;
+      }
+
       if (attempt > 0 || index !== 0) {
         const previous = attempt > 0 ? attemptPlan[attempt - 1].candidate : candidates[0];
         options.onFailover?.({
@@ -374,8 +388,12 @@ export function withProviderFailover(
 
       let source: AssistantMessageEventStream;
       try {
-        source = await candidate.start();
+        source = await raceWithAbort(candidate.start(), signal);
       } catch (error) {
+        if (signal?.aborted) {
+          endAsAborted(output, candidate);
+          return;
+        }
         // Candidate failed to even start (proxy prep/config). Counts as an
         // eligible provider fault; move on unless this was the final attempt.
         recordFailoverTargetResult(candidate.key, false, config, now());
@@ -455,15 +473,13 @@ export function withProviderFailover(
       try {
         output.end(await raceWithAbort(source.result(), signal));
       } catch (error) {
-        const final = signal?.aborted
-          ? buildAbortedAssistantMessage(candidate)
-          : buildStartFailureAssistantMessage(candidate, error);
-        output.push({
-          type: "error",
-          reason: signal?.aborted ? "aborted" : "error",
-          error: final,
-        });
-        output.end(final);
+        if (signal?.aborted) {
+          endAsAborted(output, candidate);
+        } else {
+          const final = buildStartFailureAssistantMessage(candidate, error);
+          output.push({ type: "error", reason: "error", error: final });
+          output.end(final);
+        }
       }
       return;
     }

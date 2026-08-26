@@ -72,6 +72,16 @@ function uncommittedErrorEvents(errorMessage) {
   ];
 }
 
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 async function collectEvents(stream) {
   const events = [];
   for await (const event of stream) {
@@ -279,6 +289,41 @@ test("abort ends a source that finishes iteration without resolving result", asy
   const events = await collectEvents(stream);
   assert.equal(events.at(-1)?.type, "error");
   assert.equal(events.at(-1)?.reason, "aborted");
+});
+
+test("abort ends a candidate that never finishes starting", async () => {
+  const controller = new AbortController();
+  const startGate = deferred();
+  const started = deferred();
+  const stream = withProviderFailover(
+    [
+      {
+        key: "primary",
+        label: "primary",
+        model: { api: "anthropic-messages", provider: "anthropic", id: "primary" },
+        start: () => {
+          started.resolve();
+          return startGate.promise;
+        },
+      },
+    ],
+    { config: BREAKER_CONFIG, signal: controller.signal },
+  );
+
+  await started.promise;
+  controller.abort(new Error("cancelled by user"));
+
+  const result = await resolvesWithin(stream.result());
+  assert.equal(result.stopReason, "aborted");
+  assert.equal(result.errorMessage, "Cancelled");
+  const events = await collectEvents(stream);
+  assert.equal(events.at(-1)?.type, "error");
+  assert.equal(events.at(-1)?.reason, "aborted");
+
+  // The deferred provider setup may still settle later; the abort race keeps
+  // its completion observed and never lets it hold the foreground stream open.
+  startGate.reject(new Error("late provider setup failure"));
+  await new Promise((resolve) => setImmediate(resolve));
 });
 
 test("maxSwitches caps how many candidates are attempted", async () => {
