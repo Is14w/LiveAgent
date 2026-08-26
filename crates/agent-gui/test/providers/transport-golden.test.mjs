@@ -210,6 +210,7 @@ const failoverLoader = createTsModuleLoader({
     },
     [abs("src/lib/debug/agentDebug.ts")]: {
       buildStreamRequestDebugPayload: () => ({}),
+      flushDebugLoggerInBackground: () => {},
     },
     [abs("src/lib/providers/hostedSearchEvents.ts")]: {
       createHostedSearchProbeId: () => undefined,
