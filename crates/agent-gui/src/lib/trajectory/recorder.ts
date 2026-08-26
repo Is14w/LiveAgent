@@ -215,6 +215,14 @@ export function scopeTrajectoryRecorder(
       select();
       recorder.noteRetry(step, info);
     },
+    noteFailover: (step, info) => {
+      select();
+      recorder.noteFailover(step, info);
+    },
+    noteTransport: (step, info) => {
+      select();
+      recorder.noteTransport(step, info);
+    },
     toolStart: (step, toolCall) => {
       select();
       recorder.toolStart(step, toolCall);
