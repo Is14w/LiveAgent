@@ -55,10 +55,7 @@ export function hasDirectoryEntry(entries: readonly FileSystemEntry[]) {
  * directory import API expects file paths relative to that folder.
  */
 export function collectSelectedDirectoryFiles(files: readonly File[]): DroppedDirectory[] {
-  const directories = new Map<
-    string,
-    { files: DroppedDirectoryFile[]; totalBytes: number }
-  >();
+  const directories = new Map<string, { files: DroppedDirectoryFile[]; totalBytes: number }>();
 
   for (const file of files) {
     const segments = file.webkitRelativePath

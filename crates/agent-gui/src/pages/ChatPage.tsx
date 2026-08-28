@@ -143,6 +143,7 @@ import { useTrayPrefs } from "../lib/tray/trayPrefs";
 import { createTauriTunnelClient } from "../lib/tunnels/tauriTunnelClient";
 import { tauriWorkspaceActivityClient } from "../lib/workspace-activity/tauriWorkspaceActivityClient";
 import type { ChatPageProps } from "./chat/chatPageTypes";
+import { asErrorMessage } from "./chat/chatPageUtils";
 import { useComposerHistoryPrompts } from "./chat/composer/useComposerHistoryPrompts";
 import type {
   ConversationControllerActions,
@@ -174,7 +175,6 @@ import { useNotifyToasts } from "./chat/hooks/useNotifyToasts";
 import { MAX_UPLOAD_FILES, usePendingUploads } from "./chat/hooks/usePendingUploads";
 import { useTauriFileDrop } from "./chat/hooks/useTauriFileDrop";
 import { useUploadZoneDrop } from "./chat/hooks/useUploadZoneDrop";
-import { asErrorMessage } from "./chat/chatPageUtils";
 import {
   getQueuedConversationIds,
   removeQueuedChatTurnsForConversation,
@@ -2043,7 +2043,8 @@ export function ChatPage(props: ChatPageProps) {
     async (targetConversationId?: string, initialWorkdir?: string) => {
       try {
         const selected = await invoke<string | null>("system_pick_folder", {
-          initial_workdir: initialWorkdir?.trim() || displayedConversationWorkdir.trim() || undefined,
+          initial_workdir:
+            initialWorkdir?.trim() || displayedConversationWorkdir.trim() || undefined,
         });
         const folderPath = selected?.trim();
         if (!folderPath) return;
