@@ -368,7 +368,9 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.runtime.controls": "Model controls",
   "chat.runtime.planMode": "Plan",
   "chat.upload.addSection": "Add",
-  "chat.upload.filesAndFolders": "Files & folders",
+  "chat.upload.files": "Files",
+  "chat.upload.folder": "Folder",
+  "chat.upload.selectFolder": "Select a folder to mount as a project directory",
   "chat.runtime.planModeTitle": "Plan mode",
   "chat.runtime.planModeHint":
     "Research read-only and present a plan; execution starts after approval",
