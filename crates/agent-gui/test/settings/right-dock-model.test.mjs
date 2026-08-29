@@ -664,6 +664,40 @@ describe("file tree model", () => {
     assert.equal(revoked[`${externalPath}/guide`], undefined);
   });
 
+  test("external-root refresh prunes deleted subtrees so recreated directories reload", () => {
+    const root = { id: "root-1", name: "Shared docs", cwd: "C:/shared/docs" };
+    const externalPath = fileTreeModel.externalRootPath(root.id);
+    const removedPath = `${externalPath}/build`;
+    const removedChildPath = `${removedPath}/artifact.js`;
+    const nodes = {
+      "": dirNode("", [externalPath], { loaded: true }),
+      [externalPath]: dirNode(externalPath, [removedPath], { loaded: true, name: root.name }),
+      [removedPath]: dirNode(removedPath, [removedChildPath], { loaded: true }),
+      [removedChildPath]: fileNode(removedChildPath),
+    };
+
+    const refreshed = fileTreeModel.applyFileTreeListResponse(
+      nodes,
+      externalPath,
+      root.cwd,
+      [],
+      undefined,
+    );
+    assert.deepEqual(refreshed[externalPath].children, []);
+    assert.equal(refreshed[removedPath], undefined);
+    assert.equal(refreshed[removedChildPath], undefined);
+
+    const recreated = fileTreeModel.applyFileTreeListResponse(
+      refreshed,
+      externalPath,
+      root.cwd,
+      [{ path: removedPath, kind: "dir" }],
+      undefined,
+    );
+    assert.equal(recreated[removedPath].loaded, false);
+    assert.deepEqual(recreated[removedPath].children, []);
+  });
+
   test("invalidation reducer accumulates changed paths and escalates correctly", () => {
     const { initialFileTreeInvalidationState, reduceFileTreeInvalidation, takeFileTreeInvalidation } =
       fileTreeModel;

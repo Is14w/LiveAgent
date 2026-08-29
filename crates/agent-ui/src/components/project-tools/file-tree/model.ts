@@ -316,7 +316,7 @@ export function applyFileTreeListResponse(
   for (const previousChild of parent.children) {
     if (
       kept.has(previousChild) ||
-      isExternalRootPath(previousChild) ||
+      (path === ROOT_PATH && isExternalRootPath(previousChild)) ||
       next[previousChild] === undefined
     ) {
       continue;
