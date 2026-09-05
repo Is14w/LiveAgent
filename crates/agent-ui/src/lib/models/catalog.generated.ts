@@ -22,11 +22,12 @@ export type CatalogModelEntry = {
 
 export type CatalogProviderId = "anthropic" | "google" | "openai" | "xai" | "deepseek" | "zhipuai" | "moonshotai" | "minimax" | "stepfun" | "xiaomi" | "longcat" | "alibaba" | "tencent";
 
-export const MODEL_CATALOG_SNAPSHOT_DATE = "2026-08-14";
+export const MODEL_CATALOG_SNAPSHOT_DATE = "2026-09-05";
 
 export const MODEL_CATALOG: Record<CatalogProviderId, readonly CatalogModelEntry[]> = {
   anthropic: [
     { id: "claude-fable-5", contextWindow: 1000000, maxOutputToken: 128000, thinking: { levels: ["low", "medium", "high", "xhigh", "max"], off: false } },
+    { id: "claude-fable-5-1", contextWindow: 1000000, maxOutputToken: 128000, thinking: { levels: ["low", "medium", "high", "xhigh", "max"], off: true } },
     { id: "claude-haiku-4-5", contextWindow: 200000, maxOutputToken: 64000, thinking: { levels: ["minimal", "low", "medium", "high"], off: true } },
     { id: "claude-haiku-4-5-20251001", contextWindow: 200000, maxOutputToken: 64000, thinking: { levels: ["minimal", "low", "medium", "high"], off: true } },
     { id: "claude-opus-4-5", contextWindow: 200000, maxOutputToken: 64000, thinking: { levels: ["low", "medium", "high"], off: true } },
@@ -64,11 +65,11 @@ export const MODEL_CATALOG: Record<CatalogProviderId, readonly CatalogModelEntry
     { id: "gemini-3.5-live-translate-preview", contextWindow: 16384, maxOutputToken: 4096 },
     { id: "gemini-3.6-flash", contextWindow: 1048576, maxOutputToken: 65536, thinking: { levels: ["minimal", "low", "medium", "high"], off: false } },
     { id: "gemini-3.7-flash", contextWindow: 1048576, maxOutputToken: 65536, thinking: { levels: ["low", "medium", "high"], off: false } },
+    { id: "gemini-3.8-flash", contextWindow: 1048576, maxOutputToken: 65536, thinking: { levels: ["low", "medium", "high"], off: false } },
     { id: "gemini-embedding-001", contextWindow: 2048, maxOutputToken: 1 },
     { id: "gemini-embedding-2", contextWindow: 8192, maxOutputToken: 1 },
-    { id: "gemini-flash-latest", contextWindow: 1048576, maxOutputToken: 65536, thinking: { levels: ["minimal", "low", "medium", "high"], off: false } },
+    { id: "gemini-flash-latest", contextWindow: 1048576, maxOutputToken: 65536, thinking: { levels: ["low", "medium", "high"], off: false } },
     { id: "gemini-flash-lite-latest", contextWindow: 1048576, maxOutputToken: 65536, thinking: { levels: ["minimal", "low", "medium", "high"], off: false } },
-    { id: "gemini-robotics-er-1.6-preview", contextWindow: 131072, maxOutputToken: 65536, thinking: { levels: ["minimal", "low", "medium", "high"], off: true } },
     { id: "gemma-4-26b-a4b-it", contextWindow: 262144, maxOutputToken: 32768, thinking: { levels: ["high"], off: true } },
     { id: "gemma-4-31b-it", contextWindow: 262144, maxOutputToken: 32768, thinking: { levels: ["high"], off: true } },
     { id: "lyria-3-clip-preview", contextWindow: 1048576, maxOutputToken: 65536 },
@@ -107,6 +108,7 @@ export const MODEL_CATALOG: Record<CatalogProviderId, readonly CatalogModelEntry
     { id: "gpt-5.6-luna", contextWindow: 272000, maxOutputToken: 128000, thinking: { levels: ["low", "medium", "high", "xhigh", "max"], off: true } },
     { id: "gpt-5.6-sol", contextWindow: 272000, maxOutputToken: 128000, thinking: { levels: ["low", "medium", "high", "xhigh", "max"], off: true } },
     { id: "gpt-5.6-terra", contextWindow: 272000, maxOutputToken: 128000, thinking: { levels: ["low", "medium", "high", "xhigh", "max"], off: true } },
+    { id: "gpt-6-astra", contextWindow: 272000, maxOutputToken: 128000, thinking: { levels: ["low", "medium", "high", "xhigh", "max"], off: false } },
     { id: "gpt-realtime-2.1", contextWindow: 128000, maxOutputToken: 32000, thinking: { levels: ["minimal", "low", "medium", "high", "xhigh"], off: false } },
     { id: "o1", contextWindow: 200000, maxOutputToken: 100000, thinking: { levels: ["low", "medium", "high"], off: false } },
     { id: "o1-pro", contextWindow: 200000, maxOutputToken: 100000, thinking: { levels: ["low", "medium", "high"], off: false } },
@@ -145,6 +147,8 @@ export const MODEL_CATALOG: Record<CatalogProviderId, readonly CatalogModelEntry
     { id: "glm-5-turbo", contextWindow: 200000, maxOutputToken: 131072, thinking: { levels: ["high"], off: true } },
     { id: "glm-5.1", contextWindow: 200000, maxOutputToken: 131072, thinking: { levels: ["high"], off: true } },
     { id: "glm-5.2", contextWindow: 1000000, maxOutputToken: 131072, thinking: { levels: ["high", "max"], off: false } },
+    { id: "glm-5.3", contextWindow: 1000000, maxOutputToken: 131072, thinking: { levels: ["low", "high", "max"], off: false } },
+    { id: "glm-5.3-flash", contextWindow: 1000000, maxOutputToken: 131072, thinking: { levels: ["low", "high", "max"], off: false } },
     { id: "glm-5v-turbo", contextWindow: 200000, maxOutputToken: 131072, thinking: { levels: ["high"], off: true } },
   ],
   moonshotai: [
@@ -160,13 +164,13 @@ export const MODEL_CATALOG: Record<CatalogProviderId, readonly CatalogModelEntry
     { id: "kimi-k3", contextWindow: 1048576, maxOutputToken: 131072, thinking: { levels: ["low", "high", "max"], off: true } },
   ],
   minimax: [
-    { id: "MiniMax-M2", contextWindow: 196608, maxOutputToken: 128000, thinking: { levels: [], off: false } },
+    { id: "MiniMax-M2", contextWindow: 204800, maxOutputToken: 131072, thinking: { levels: [], off: false } },
     { id: "MiniMax-M2.1", contextWindow: 204800, maxOutputToken: 131072, thinking: { levels: [], off: false } },
     { id: "MiniMax-M2.5", contextWindow: 204800, maxOutputToken: 131072, thinking: { levels: [], off: false } },
     { id: "MiniMax-M2.5-highspeed", contextWindow: 204800, maxOutputToken: 131072, thinking: { levels: [], off: false } },
     { id: "MiniMax-M2.7", contextWindow: 204800, maxOutputToken: 131072, thinking: { levels: [], off: false } },
     { id: "MiniMax-M2.7-highspeed", contextWindow: 204800, maxOutputToken: 131072, thinking: { levels: [], off: false } },
-    { id: "MiniMax-M3", contextWindow: 1000000, maxOutputToken: 128000, thinking: { levels: ["high"], off: true } },
+    { id: "MiniMax-M3", contextWindow: 1048576, maxOutputToken: 512000, thinking: { levels: ["high"], off: true } },
   ],
   stepfun: [
     { id: "step-1-32k", contextWindow: 32768, maxOutputToken: 8192 },
@@ -262,6 +266,7 @@ export const MODEL_CATALOG: Record<CatalogProviderId, readonly CatalogModelEntry
     { id: "qwen3.7-flash", contextWindow: 1000000, maxOutputToken: 65536, thinking: { levels: ["minimal", "low", "medium", "high"], off: true } },
     { id: "qwen3.7-max", contextWindow: 1000000, maxOutputToken: 65536, thinking: { levels: ["minimal", "low", "medium", "high"], off: true } },
     { id: "qwen3.7-plus", contextWindow: 1000000, maxOutputToken: 64000, thinking: { levels: ["minimal", "low", "medium", "high"], off: true } },
+    { id: "qwen3.8-flash", contextWindow: 1000000, maxOutputToken: 131072, thinking: { levels: ["low", "medium", "xhigh"], off: true } },
     { id: "qwen3.8-max", contextWindow: 1000000, maxOutputToken: 131072, thinking: { levels: ["low", "medium", "xhigh"], off: true } },
     { id: "qwq-32b", contextWindow: 131072, maxOutputToken: 8192, thinking: { levels: [], off: false } },
     { id: "qwq-plus", contextWindow: 131072, maxOutputToken: 8192, thinking: { levels: [], off: false } },
