@@ -290,7 +290,7 @@ export function ChatPage(props: ChatPageProps) {
     standaloneConversationId,
   } = props;
   const isStandaloneConversationWindow = Boolean(standaloneConversationId?.trim());
-  const workbenchEnabled = sessionWorkbench.enabled && !isStandaloneConversationWindow;
+  const workbenchEnabled = sessionWorkbench.enabled ? !isStandaloneConversationWindow : false;
   // Monaco reads NLS globals while the lazy editor module imports monaco-editor.
   setPreferredMonacoNlsLocale(settings.locale);
   const effectiveTheme = resolveEffectiveTheme(settings.theme);
@@ -2934,6 +2934,7 @@ export function ChatPage(props: ChatPageProps) {
   // 表现为 dock 上的终端"关不掉"。按绑定而非租约查找,覆盖宿主取得租约
   // 前的 connecting 窗口。
   useEffect(() => {
+    if (!sessionWorkbench.enabled) return;
     if (!workbenchEnabled) return;
     return tauriTerminalClient.subscribe((event) => {
       if (event.kind !== "closed") return;
@@ -3680,7 +3681,7 @@ export function ChatPage(props: ChatPageProps) {
   // 与 PaneSurfaceLayer 的 paneCount < 2(chromeless)判定保持同一口径:
   // 只要画布上有 ≥2 个 Pane,Pane chrome 就会渲染,切换点随之下沉。
   const workbenchHasMultiplePanes =
-    workbenchEnabled && Object.keys(workbench.layout.panes).length >= 2;
+    sessionWorkbench.enabled && Object.keys(workbench.layout.panes).length >= 2;
 
   const renderWorkbenchPaneChrome = (
     pane: PaneRecord,
@@ -3980,6 +3981,9 @@ export function ChatPage(props: ChatPageProps) {
       </div>
     ) : null;
 
+  const showConversationViewTabs =
+    activeView === "chat" && hasConversationReply && !workbenchHasMultiplePanes;
+
   return (
     <div
       data-app-frame="three-column"
@@ -4099,7 +4103,7 @@ export function ChatPage(props: ChatPageProps) {
           leadingActions={
             // 多 Pane 时切换点内嵌在聚焦 Pane 的左上角(PaneChrome),顶栏
             // 不再重复;单 Pane 无 Pane chrome,保留顶栏 Tabs。
-            activeView === "chat" && hasConversationReply && !workbenchHasMultiplePanes ? (
+            showConversationViewTabs && !isStandaloneConversationWindow ? (
               <ConversationViewTabs
                 active={renderedConversationView}
                 onChange={setActiveConversationView}
@@ -4266,10 +4270,14 @@ export function ChatPage(props: ChatPageProps) {
           workbenchEnabled ? handleOpenTerminalInWorkbenchSplit : undefined
         }
         onToolDragStart={
-          workbenchEnabled && terminalProjectPathKey ? handleToolWorkbenchDragIntent : undefined
+          sessionWorkbench.enabled && terminalProjectPathKey && !isStandaloneConversationWindow
+            ? handleToolWorkbenchDragIntent
+            : undefined
         }
         onOpenToolInWorkbench={
-          workbenchEnabled && terminalProjectPathKey ? handleOpenToolInWorkbenchSplit : undefined
+          sessionWorkbench.enabled && terminalProjectPathKey && !isStandaloneConversationWindow
+            ? handleOpenToolInWorkbenchSplit
+            : undefined
         }
         onOpenNewTerminalInWorkbench={
           workbenchEnabled ? handleOpenNewTerminalInWorkbenchSplit : undefined
